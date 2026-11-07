@@ -1,0 +1,612 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ArenaPick — Multi-Sport Leagues, Predictions & Leaderboards</title>
+  <meta name="description" content="Create leagues and competitions across GAA Hurling, Gaelic Football, Rugby, Soccer, NFL, Basketball, Golf, Tennis & Fishing. Predict scores and climb the leaderboard." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Outfit:wght@600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="./styles.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js" defer></script>
+</head>
+<body>
+  <!-- Top Navigation Bar -->
+  <header class="topbar no-print">
+    <div class="container topbar-inner">
+      <div class="brand">
+        <div class="brand-logo" aria-hidden="true">🏆</div>
+        <div>
+          <span class="brand-name">ArenaPick</span>
+          <span class="brand-tagline">Multi-Sport Leagues &amp; Score Predictor</span>
+        </div>
+      </div>
+
+      <nav class="main-nav" aria-label="Primary Navigation">
+        <button class="nav-tab active" data-tab="fixtures">
+          <span>🏟️</span> Fixtures &amp; Predict
+        </button>
+        <button class="nav-tab" data-tab="leaderboard">
+          <span>📊</span> Leaderboard
+        </button>
+        <button class="nav-tab" data-tab="mypicks">
+          <span>🎯</span> My Predictions
+        </button>
+        <button class="nav-tab" data-tab="admin" id="adminNavTab">
+          <span>🛡️</span> Admin
+          <span id="adminPendingRegBadge" class="badge-pill badge-warn hidden">0</span>
+        </button>
+      </nav>
+
+      <div class="topbar-actions">
+        <button id="btnFirebaseSetup" class="btn btn-ghost btn-sm" title="Configure Firebase Cloud Sync">
+          <span id="cloudStatusDot" class="status-dot offline"></span>
+          <span id="cloudStatusText">Local / Setup DB</span>
+        </button>
+
+        <button id="btnDownloadPdf" class="btn btn-secondary btn-sm" title="Download Competition Leaderboard & Fixtures as PDF">
+          📄 Export PDF
+        </button>
+
+        <div id="authArea">
+          <button id="btnOpenAuth" class="btn btn-primary btn-sm">
+            🔐 Sign In
+          </button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="container main-content no-print">
+    <!-- Sport Filter Bar (All 10 Sports) -->
+    <section class="sports-ribbon" id="sportsFilterBar" aria-label="Filter by Sport">
+      <!-- Populated dynamically by app.js -->
+    </section>
+
+    <!-- Active Competition Banner & Scoring Rules Summary -->
+    <section class="comp-hero-banner">
+      <div class="comp-hero-left">
+        <div class="comp-selector-row">
+          <label for="activeCompetitionSelect" class="comp-select-label">Active Competition:</label>
+          <select id="activeCompetitionSelect" class="comp-select"></select>
+        </div>
+        <p id="activeCompDescription" class="comp-desc"></p>
+        <div id="registrationStatusBox" class="reg-status-box"></div>
+      </div>
+
+      <div class="scoring-rules-pills">
+        <div class="score-rule-card">
+          <span class="rule-pts">+3 PTS</span>
+          <span class="rule-label">Correct Result (Win/Loss/Draw)</span>
+        </div>
+        <div class="score-rule-card bonus-gold">
+          <span class="rule-pts" id="ruleExactPts">+3 BONUS</span>
+          <span class="rule-label" id="ruleExactLabel">Exact / Within 2 Pts</span>
+        </div>
+        <div class="score-rule-card bonus-silver">
+          <span class="rule-pts" id="ruleClosePts">+2 BONUS</span>
+          <span class="rule-label" id="ruleCloseLabel">Within 5 Pts of Score</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================================================================== -->
+    <!-- TAB 1: FIXTURES & PREDICTIONS                                      -->
+    <!-- ================================================================== -->
+    <section id="tab-fixtures" class="tab-panel active">
+      <div class="section-toolbar">
+        <div>
+          <h2 id="fixturesHeading">Fixtures &amp; Match Predictions</h2>
+          <p class="muted" id="fixturesSubheading">
+            Pick Win, Loss, or Draw and enter your predicted score before kickoff!
+          </p>
+        </div>
+        <div class="toolbar-actions" id="fixturesAdminQuickActions">
+          <!-- Admin quick buttons (Add Game / New Competition) injected here if Admin -->
+        </div>
+      </div>
+
+      <div id="gamesListContainer" class="games-grid">
+        <!-- Populated dynamically by app.js -->
+      </div>
+    </section>
+
+    <!-- ================================================================== -->
+    <!-- TAB 2: COMPETITION LEADERBOARD                                     -->
+    <!-- ================================================================== -->
+    <section id="tab-leaderboard" class="tab-panel">
+      <div class="section-toolbar">
+        <div>
+          <h2 id="leaderboardHeading">Competition Standings &amp; Leaderboard</h2>
+          <p class="muted">
+            Points are automatically awarded as soon as an Admin enters the final score of a fixture.
+          </p>
+        </div>
+        <div>
+          <button id="btnPrintLeaderboard" class="btn btn-outline btn-sm">🖨️ Print Standings</button>
+        </div>
+      </div>
+
+      <div class="leaderboard-card">
+        <div class="table-responsive">
+          <table class="leaderboard-table">
+            <thead>
+              <tr>
+                <th>Rank</th>
+                <th>Player</th>
+                <th>Picks Graded</th>
+                <th>Correct Result (+3)</th>
+                <th>Exact/Close Bonus (+3)</th>
+                <th>Within 5 Pts Bonus (+2)</th>
+                <th>Total Points</th>
+              </tr>
+            </thead>
+            <tbody id="leaderboardTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================================================================== -->
+    <!-- TAB 3: MY PREDICTIONS                                              -->
+    <!-- ================================================================== -->
+    <section id="tab-mypicks" class="tab-panel">
+      <div class="section-toolbar">
+        <div>
+          <h2>🎯 My Submitted Predictions</h2>
+          <p class="muted">Track your predictions and point breakdowns across all competitions.</p>
+        </div>
+      </div>
+      <div id="myPicksContainer" class="games-grid"></div>
+    </section>
+
+    <!-- ================================================================== -->
+    <!-- TAB 4: ADMIN CONTROL CENTER                                        -->
+    <!-- ================================================================== -->
+    <section id="tab-admin" class="tab-panel">
+      <!-- Shown when user is NOT yet in /admins/{uid} -->
+      <div id="adminLockedCard" class="admin-locked-card">
+        <div class="admin-locked-header">
+          <span class="admin-shield-icon">🛡️</span>
+          <div>
+            <h2>League Commissioner / Admin Access Required</h2>
+            <p class="muted">
+              Protected by Firestore Security Rules (<code>exists(/databases/$(database)/documents/admins/$(request.auth.uid))</code>).
+            </p>
+          </div>
+        </div>
+
+        <div class="admin-bootstrap-box">
+          <h3>🔑 How to Make Yourself the First Admin in Firebase</h3>
+          <ol class="admin-steps-list">
+            <li>Sign in to ArenaPick first. Your Firebase User UID is shown below:</li>
+          </ol>
+          <div class="uid-copy-row">
+            <code id="currentUserUidDisplay">Not signed in — please Sign In first</code>
+            <button id="btnCopyUid" type="button" class="btn btn-outline btn-sm">📋 Copy UID</button>
+          </div>
+          <ol class="admin-steps-list" start="2">
+            <li>
+              In your Firebase Console &rarr; <strong>Firestore Database</strong> &rarr; click <strong>"+ Start collection"</strong>.
+            </li>
+            <li>
+              Set <strong>Collection ID</strong> to <code>admins</code>, paste your <strong>UID</strong> as the <strong>Document ID</strong>, add field <code>role</code> = <code>"admin"</code>, and click <strong>Save</strong>.
+            </li>
+          </ol>
+          <div style="margin-top: 14px; display:flex; gap:10px; flex-wrap:wrap;">
+            <button id="btnRefreshAdminStatus" class="btn btn-primary">🔄 Verify Admin Status</button>
+            <button id="btnDemoAdminMode" class="btn btn-outline">🧪 Enable Local Demo Admin (For Testing)</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Shown when user IS verified as an Admin -->
+      <div id="adminDashboardContent" class="hidden">
+        <div class="admin-top-bar">
+          <div>
+            <span class="sport-pill">League Commissioner</span>
+            <h2>🛡️ ArenaPick Admin Control Center</h2>
+            <p class="muted">Create competitions, add fixtures, enter final scores to auto-calculate leaderboards, and approve player registrations.</p>
+          </div>
+          <div class="admin-top-actions">
+            <button id="btnOpenNewCompModal" class="btn btn-primary">🏆 + Create Competition</button>
+            <button id="btnOpenNewGameModal" class="btn btn-secondary">🏟️ + Add Game / Fixture</button>
+          </div>
+        </div>
+
+        <div class="admin-grid-layout">
+          <!-- Panel 1: Enter Final Scores & Grade Games -->
+          <div class="admin-card full-span">
+            <div class="admin-card-header">
+              <h3>⚡ Manage Fixtures &amp; Enter Final Results (Active Competition)</h3>
+              <button id="btnAdminAddGameInline" class="btn btn-outline btn-sm">+ Add Fixture</button>
+            </div>
+            <p class="muted">
+              Enter the final score and set status to <strong>Completed</strong> to automatically award 3 pts (Result), +3 pts (Exact/Close), and +2 pts (Within 5) to all predictors!
+            </p>
+            <div id="adminGamesManagerList" class="admin-list-container"></div>
+          </div>
+
+          <!-- Panel 2: League Registrations & Approvals -->
+          <div class="admin-card">
+            <div class="admin-card-header">
+              <h3>🎟️ Competition Player Registrations</h3>
+              <span id="regCountBadge" class="badge-pill">0</span>
+            </div>
+            <p class="muted">Approve or manage players registered in <code>/registrations/{compId__uid}</code>.</p>
+            <div id="adminRegistrationsList" class="admin-list-container"></div>
+          </div>
+
+          <!-- Panel 3: Manage Competitions -->
+          <div class="admin-card">
+            <div class="admin-card-header">
+              <h3>🏆 All Competitions</h3>
+              <span id="compCountBadge" class="badge-pill">0</span>
+            </div>
+            <p class="muted">Manage existing leagues across all 10 sports.</p>
+            <div id="adminCompetitionsList" class="admin-list-container"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- ==================================================================== -->
+  <!-- MODAL 1: MAKE / EDIT PREDICTION                                      -->
+  <!-- ==================================================================== -->
+  <div id="predictModal" class="modal-backdrop hidden no-print" role="dialog" aria-modal="true">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div>
+          <span id="predModalSportBadge" class="sport-pill">🏑 GAA Hurling</span>
+          <h2 id="predModalTitle">Submit Your Prediction</h2>
+        </div>
+        <button class="modal-close" data-close-modal="predictModal">&times;</button>
+      </div>
+
+      <form id="predictionForm" class="modal-body">
+        <div class="matchup-banner">
+          <div class="matchup-team">
+            <span class="team-role">HOME</span>
+            <strong id="predHomeName">Home Team</strong>
+          </div>
+          <span class="vs-badge">VS</span>
+          <div class="matchup-team">
+            <span class="team-role">AWAY</span>
+            <strong id="predAwayName">Away Team</strong>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>1. Pick the Match Result (+3 Points) *</label>
+          <div class="outcome-picker" id="outcomePickerGroup">
+            <button type="button" class="outcome-btn active" data-outcome="HOME" id="btnPickHome">Home Win</button>
+            <button type="button" class="outcome-btn" data-outcome="DRAW" id="btnPickDraw">Draw</button>
+            <button type="button" class="outcome-btn" data-outcome="AWAY" id="btnPickAway">Away Win</button>
+          </div>
+        </div>
+
+        <!-- Standard Score Inputs (Soccer, Rugby, NFL, Basketball, Golf, Tennis, Fishing) -->
+        <div id="standardScoreInputs" class="score-inputs-box">
+          <label>2. Predict the Final Score (+3 Exact/Close Bonus | +2 Within 5 Pts Bonus)</label>
+          <div class="form-grid-2">
+            <div class="form-group">
+              <label for="predHomeScore" id="lblPredHomeScore">Home Score</label>
+              <input id="predHomeScore" type="number" min="0" value="20" required />
+            </div>
+            <div class="form-group">
+              <label for="predAwayScore" id="lblPredAwayScore">Away Score</label>
+              <input id="predAwayScore" type="number" min="0" value="18" required />
+            </div>
+          </div>
+        </div>
+
+        <!-- GAA Goals & Points Inputs (Hurling & Gaelic Football) -->
+        <div id="gaaScoreInputs" class="score-inputs-box hidden">
+          <label>2. Predict GAA Score (Goals = 3 pts, Points = 1 pt — Total auto-calculated!)</label>
+          <div class="gaa-Dual-grid">
+            <div class="gaa-team-box">
+              <strong id="gaaHomeLabel">Home</strong>
+              <div class="form-grid-2">
+                <div class="form-group">
+                  <label for="predHomeGoals">Goals (3pt)</label>
+                  <input id="predHomeGoals" type="number" min="0" value="1" />
+                </div>
+                <div class="form-group">
+                  <label for="predHomePoints">Points (1pt)</label>
+                  <input id="predHomePoints" type="number" min="0" value="18" />
+                </div>
+              </div>
+              <div class="gaa-total-preview">Total: <strong id="predHomeGaaTotal">21 pts</strong></div>
+            </div>
+
+            <div class="gaa-team-box">
+              <strong id="gaaAwayLabel">Away</strong>
+              <div class="form-grid-2">
+                <div class="form-group">
+                  <label for="predAwayGoals">Goals (3pt)</label>
+                  <input id="predAwayGoals" type="number" min="0" value="1" />
+                </div>
+                <div class="form-group">
+                  <label for="predAwayPoints">Points (1pt)</label>
+                  <input id="predAwayPoints" type="number" min="0" value="16" />
+                </div>
+              </div>
+              <div class="gaa-total-preview">Total: <strong id="predAwayGaaTotal">19 pts</strong></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-ghost" data-close-modal="predictModal">Cancel</button>
+          <button type="submit" class="btn btn-primary">🎯 Lock In Prediction</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ==================================================================== -->
+  <!-- MODAL 2: ADMIN — CREATE NEW COMPETITION / LEAGUE                     -->
+  <!-- ==================================================================== -->
+  <div id="newCompModal" class="modal-backdrop hidden no-print" role="dialog" aria-modal="true">
+    <div class="modal-card modal-lg">
+      <div class="modal-header">
+        <h2>🏆 Create New Competition / League</h2>
+        <button class="modal-close" data-close-modal="newCompModal">&times;</button>
+      </div>
+      <form id="newCompForm" class="modal-body">
+        <div class="form-grid-2">
+          <div class="form-group">
+            <label for="compTitle">Competition / League Name *</label>
+            <input id="compTitle" type="text" required placeholder="e.g. Munster Senior Hurling Championship 2026" />
+          </div>
+          <div class="form-group">
+            <label for="compSport">Choose Sport *</label>
+            <select id="compSport" required></select>
+          </div>
+        </div>
+
+        <div class="form-grid-2">
+          <div class="form-group">
+            <label for="compSeason">Season / Event Label</label>
+            <input id="compSeason" type="text" value="2026/27 Season" required />
+          </div>
+          <div class="form-group">
+            <label for="compApprovalMode">Player Registration Mode</label>
+            <select id="compApprovalMode">
+              <option value="open">Open League (Anyone signed in can predict immediately)</option>
+              <option value="approval">Strict Registration (Players register as 'pending' &amp; Admin approves)</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="compDesc">Description &amp; League Notes</label>
+          <input id="compDesc" type="text" placeholder="Predict every round to win the league trophy!" />
+        </div>
+
+        <div class="form-grid-3">
+          <div class="form-group">
+            <label for="compResultPts">Correct Result Points</label>
+            <input id="compResultPts" type="number" min="1" value="3" required />
+          </div>
+          <div class="form-group">
+            <label for="compExactBonusPts">Exact / Close Bonus (+Pts)</label>
+            <input id="compExactBonusPts" type="number" min="0" value="3" required />
+          </div>
+          <div class="form-group">
+            <label for="compCloseBonusPts">Within 5 Pts Bonus (+Pts)</label>
+            <input id="compCloseBonusPts" type="number" min="0" value="2" required />
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-ghost" data-close-modal="newCompModal">Cancel</button>
+          <button type="submit" class="btn btn-primary">Create Competition</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ==================================================================== -->
+  <!-- MODAL 3: ADMIN — ADD GAME / FIXTURE OR ENTER FINAL SCORE             -->
+  <!-- ==================================================================== -->
+  <div id="gameFormModal" class="modal-backdrop hidden no-print" role="dialog" aria-modal="true">
+    <div class="modal-card modal-lg">
+      <div class="modal-header">
+        <h2 id="gameModalHeading">🏟️ Add Fixture to Competition</h2>
+        <button class="modal-close" data-close-modal="gameFormModal">&times;</button>
+      </div>
+      <form id="gameForm" class="modal-body">
+        <div class="form-grid-2">
+          <div class="form-group">
+            <label for="gameCompSelect">Competition *</label>
+            <select id="gameCompSelect" required></select>
+          </div>
+          <div class="form-group">
+            <label for="gameRound">Round / Stage *</label>
+            <input id="gameRound" type="text" required placeholder="e.g. Round 1 / Quarter-Final / Week 4" value="Round 1" />
+          </div>
+        </div>
+
+        <div class="form-grid-2">
+          <div class="form-group">
+            <label for="gameHomeTeam">Home Team / Player 1 *</label>
+            <input id="gameHomeTeam" type="text" required placeholder="e.g. Limerick / Ireland / Liverpool" />
+          </div>
+          <div class="form-group">
+            <label for="gameAwayTeam">Away Team / Player 2 *</label>
+            <input id="gameAwayTeam" type="text" required placeholder="e.g. Kilkenny / France / Arsenal" />
+          </div>
+        </div>
+
+        <div class="form-grid-3">
+          <div class="form-group">
+            <label for="gameVenue">Venue / Course / Lake</label>
+            <input id="gameVenue" type="text" placeholder="e.g. Croke Park / Aviva Stadium" />
+          </div>
+          <div class="form-group">
+            <label for="gameKickoff">Kickoff Date &amp; Time *</label>
+            <input id="gameKickoff" type="datetime-local" required />
+          </div>
+          <div class="form-group">
+            <label for="gameStatus">Match Status *</label>
+            <select id="gameStatus">
+              <option value="upcoming">Upcoming (Open for Predictions)</option>
+              <option value="locked">Locked (In Progress — No Edits)</option>
+              <option value="completed">Completed (Final Score Entered — Grade Points)</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Final Score Entry Section (for when status == completed) -->
+        <div class="score-inputs-box" id="adminStandardScoreBox">
+          <label>Official Final Score (Used when Status is set to "Completed")</label>
+          <div class="form-grid-2">
+            <div class="form-group">
+              <label for="gameHomeScore">Home Final Total Score</label>
+              <input id="gameHomeScore" type="number" min="0" value="0" />
+            </div>
+            <div class="form-group">
+              <label for="gameAwayScore">Away Final Total Score</label>
+              <input id="gameAwayScore" type="number" min="0" value="0" />
+            </div>
+          </div>
+        </div>
+
+        <div class="score-inputs-box hidden" id="adminGaaScoreBox">
+          <label>Official GAA Final Score (Goals = 3 pts, Points = 1 pt)</label>
+          <div class="gaa-Dual-grid">
+            <div class="gaa-team-box">
+              <strong>Home GAA Score</strong>
+              <div class="form-grid-2">
+                <div class="form-group">
+                  <label for="gameHomeGoals">Goals</label>
+                  <input id="gameHomeGoals" type="number" min="0" value="0" />
+                </div>
+                <div class="form-group">
+                  <label for="gameHomePoints">Points</label>
+                  <input id="gameHomePoints" type="number" min="0" value="0" />
+                </div>
+              </div>
+            </div>
+            <div class="gaa-team-box">
+              <strong>Away GAA Score</strong>
+              <div class="form-grid-2">
+                <div class="form-group">
+                  <label for="gameAwayGoals">Goals</label>
+                  <input id="gameAwayGoals" type="number" min="0" value="0" />
+                </div>
+                <div class="form-group">
+                  <label for="gameAwayPoints">Points</label>
+                  <input id="gameAwayPoints" type="number" min="0" value="0" />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-ghost" data-close-modal="gameFormModal">Cancel</button>
+          <button type="submit" class="btn btn-primary">💾 Save Fixture &amp; Update Leaderboard</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ==================================================================== -->
+  <!-- MODAL 4: AUTHENTICATION (GOOGLE OR USERNAME/EMAIL + PASSWORD)        -->
+  <!-- ==================================================================== -->
+  <div id="authModal" class="modal-backdrop hidden no-print" role="dialog" aria-modal="true">
+    <div class="modal-card modal-sm">
+      <div class="modal-header">
+        <h2 id="authModalTitle">Sign In to ArenaPick</h2>
+        <button class="modal-close" data-close-modal="authModal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="auth-mode-tabs">
+          <button type="button" class="auth-tab active" data-auth-mode="login">Log In</button>
+          <button type="button" class="auth-tab" data-auth-mode="register">Create Account</button>
+        </div>
+
+        <button id="btnGoogleSignIn" type="button" class="btn btn-google full-width">
+          <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true">
+            <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+            <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+            <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+            <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+          </svg>
+          Continue with Google
+        </button>
+
+        <div class="auth-divider"><span>OR USERNAME / EMAIL</span></div>
+
+        <form id="credentialsAuthForm">
+          <div class="form-group">
+            <label for="authIdentifier">Username or Email *</label>
+            <input id="authIdentifier" type="text" required placeholder="e.g. shane_gaa or shane@example.com" />
+          </div>
+          <div class="form-group">
+            <label for="authPassword">Password *</label>
+            <input id="authPassword" type="password" required minlength="6" placeholder="At least 6 characters" />
+          </div>
+          <p id="authErrorMsg" class="error-msg hidden"></p>
+          <button id="btnSubmitCredentials" type="submit" class="btn btn-primary full-width">Sign In</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================================================================== -->
+  <!-- MODAL 5: FIREBASE PROJECT CONFIGURATION                              -->
+  <!-- ==================================================================== -->
+  <div id="firebaseSetupModal" class="modal-backdrop hidden no-print" role="dialog" aria-modal="true">
+    <div class="modal-card modal-lg">
+      <div class="modal-header">
+        <h2>🔥 Connect Your New Firebase Project</h2>
+        <button class="modal-close" data-close-modal="firebaseSetupModal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p class="muted">
+          Paste the <code>firebaseConfig</code> keys from your new Firebase project below (or edit <code>firebase-config.js</code>).
+        </p>
+        <form id="firebaseConfigForm">
+          <div class="form-grid-2">
+            <div class="form-group">
+              <label for="fbApiKey">apiKey *</label>
+              <input id="fbApiKey" type="text" placeholder="AIzaSy..." required />
+            </div>
+            <div class="form-group">
+              <label for="fbAuthDomain">authDomain *</label>
+              <input id="fbAuthDomain" type="text" placeholder="your-sports-app.firebaseapp.com" required />
+            </div>
+            <div class="form-group">
+              <label for="fbProjectId">projectId *</label>
+              <input id="fbProjectId" type="text" placeholder="your-sports-app" required />
+            </div>
+            <div class="form-group">
+              <label for="fbAppId">appId *</label>
+              <input id="fbAppId" type="text" placeholder="1:123456:web:abcdef" required />
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" id="btnResetFirebaseConfig" class="btn btn-danger-ghost">Use Local Mode</button>
+            <button type="submit" class="btn btn-primary">Save &amp; Connect Firebase</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================================================================== -->
+  <!-- PDF / PRINT EXPORT SHEET                                             -->
+  <!-- ==================================================================== -->
+  <section id="pdfExportContainer" class="pdf-export-sheet" aria-hidden="true"></section>
+
+  <!-- Toast Container -->
+  <div id="toastContainer" class="toast-container no-print" aria-live="polite"></div>
+
+  <script type="module" src="./app.js"></script>
+</body>
+</html>

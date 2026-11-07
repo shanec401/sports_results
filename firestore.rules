@@ -1,0 +1,109 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ========================================================================
+    // HELPER FUNCTIONS
+    // ========================================================================
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isSignedIn() &&
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+
+    // Checks if a user's registration for a competition is approved
+    function isApprovedFor(compId) {
+      return isSignedIn() &&
+        exists(/databases/$(database)/documents/registrations/$(compId + '__' + request.auth.uid)) &&
+        get(/databases/$(database)/documents/registrations/$(compId + '__' + request.auth.uid)).data.status == 'approved';
+    }
+
+    // ========================================================================
+    // 1. ADMINS (/admins/{uid})
+    // ========================================================================
+    match /admins/{uid} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // ========================================================================
+    // 2. COMPETITIONS / LEAGUES (/competitions/{compId})
+    //    - Anyone signed in (or public) can read competitions
+    //    - Only Admins can create, update, or delete competitions
+    // ========================================================================
+    match /competitions/{compId} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin();
+    }
+
+    // ========================================================================
+    // 3. LEAGUE REGISTRATIONS (/registrations/{regId})
+    //    - Document ID format: {competitionId}__{userId}
+    //    - Users register with status == 'pending' (or 'approved' if league is open)
+    //    - Admins approve/reject registrations
+    // ========================================================================
+    match /registrations/{regId} {
+      allow read: if isSignedIn();
+
+      allow create: if isSignedIn() && (
+        isAdmin() ||
+        (regId == request.resource.data.competitionId + '__' + request.auth.uid
+          && request.resource.data.userId == request.auth.uid
+          && request.resource.data.status in ['pending', 'approved'])
+      );
+
+      allow update: if isAdmin() || (
+        isSignedIn() &&
+        resource.data.userId == request.auth.uid &&
+        request.resource.data.userId == request.auth.uid &&
+        request.resource.data.status == resource.data.status
+      );
+
+      allow delete: if isAdmin() || (
+        isSignedIn() && resource.data.userId == request.auth.uid
+      );
+    }
+
+    // ========================================================================
+    // 4. GAMES / FIXTURES (/games/{gameId})
+    //    - Anyone can read fixtures and final scores
+    //    - Only Admins can add fixtures, lock games, or enter final scores
+    // ========================================================================
+    match /games/{gameId} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin();
+    }
+
+    // ========================================================================
+    // 5. USER PREDICTIONS (/predictions/{predId})
+    //    - Document ID format: {gameId}__{userId}
+    //    - Users can submit/update their own prediction if approved for the
+    //      competition (or if competition doesn't require strict approval)
+    //    - Admins can read/update all predictions when grading scores
+    // ========================================================================
+    match /predictions/{predId} {
+      allow read: if true;
+
+      allow create: if isSignedIn() && (
+        isAdmin() || (
+          predId == request.resource.data.gameId + '__' + request.auth.uid &&
+          request.resource.data.userId == request.auth.uid &&
+          (request.resource.data.requiresApproval == false || isApprovedFor(request.resource.data.competitionId))
+        )
+      );
+
+      allow update: if isAdmin() || (
+        isSignedIn() &&
+        resource.data.userId == request.auth.uid &&
+        request.resource.data.userId == request.auth.uid
+      );
+
+      allow delete: if isAdmin() || (
+        isSignedIn() && resource.data.userId == request.auth.uid
+      );
+    }
+  }
+}
