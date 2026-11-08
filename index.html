@@ -132,37 +132,52 @@
     <!-- TAB 2: COMPETITION LEADERBOARD                                     -->
     <!-- ================================================================== -->
     <section id="tab-leaderboard" class="tab-panel">
-      <div class="section-toolbar">
-        <div>
-          <h2 id="leaderboardHeading">Competition Standings &amp; Leaderboard</h2>
-          <p class="muted">
-            Points are automatically awarded as soon as an Admin enters the final score of a fixture.
-          </p>
-        </div>
-        <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
-          <select id="leaderboardRoundSelect" class="round-select" aria-label="Filter Leaderboard by Round">
-            <option value="ALL">🏆 Full Competition (All Rounds)</option>
-          </select>
-          <button id="btnPrintLeaderboard" class="btn btn-outline btn-sm">🖨️ Print Standings</button>
-        </div>
+      <!-- Shown when user is NOT signed in -->
+      <div id="leaderboardLockedCard" class="admin-locked-card" style="text-align:center; padding: 48px 24px;">
+        <div style="font-size: 3rem; margin-bottom: 10px;">🔒</div>
+        <h2>Sign In to Unlock Competition Leaderboards</h2>
+        <p class="muted" style="max-width: 520px; margin: 8px auto 20px;">
+          Player standings, prediction breakdowns, and user scores are exclusive to logged-in members. Sign in or create a free account to view the leaderboard!
+        </p>
+        <button id="btnSignInFromLeaderboard" type="button" class="btn btn-primary">
+          🔐 Sign In / Create Account
+        </button>
       </div>
 
-      <div class="leaderboard-card">
-        <div class="table-responsive">
-          <table class="leaderboard-table">
-            <thead>
-              <tr>
-                <th>Rank</th>
-                <th>Player</th>
-                <th>Picks Graded</th>
-                <th>Correct Result (+3)</th>
-                <th>Within 7 Pts/Team (+3)</th>
-                <th>Within 14 Pts/Team (+2)</th>
-                <th>Total Points</th>
-              </tr>
-            </thead>
-            <tbody id="leaderboardTableBody"></tbody>
-          </table>
+      <!-- Shown only when user IS signed in -->
+      <div id="leaderboardUnlockedContent" class="hidden">
+        <div class="section-toolbar">
+          <div>
+            <h2 id="leaderboardHeading">Competition Standings &amp; Leaderboard</h2>
+            <p class="muted">
+              Points are automatically awarded as soon as an Admin enters the final score of a fixture.
+            </p>
+          </div>
+          <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+            <select id="leaderboardRoundSelect" class="round-select" aria-label="Filter Leaderboard by Round">
+              <option value="ALL">🏆 Full Competition (All Rounds)</option>
+            </select>
+            <button id="btnPrintLeaderboard" class="btn btn-outline btn-sm">🖨️ Print Standings</button>
+          </div>
+        </div>
+
+        <div class="leaderboard-card">
+          <div class="table-responsive">
+            <table class="leaderboard-table">
+              <thead>
+                <tr>
+                  <th>Rank</th>
+                  <th>Player</th>
+                  <th>Picks Graded</th>
+                  <th>Correct Result (+3)</th>
+                  <th>Within 7 Pts/Team (+3)</th>
+                  <th>Within 14 Pts/Team (+2)</th>
+                  <th>Total Points</th>
+                </tr>
+              </thead>
+              <tbody id="leaderboardTableBody"></tbody>
+            </table>
+          </div>
         </div>
       </div>
     </section>
@@ -229,7 +244,8 @@
             <p class="muted">Create competitions, add fixtures, enter final scores to auto-calculate leaderboards, and approve player registrations.</p>
           </div>
           <div class="admin-top-actions">
-            <button id="btnOpenNewCompModal" class="btn btn-primary">🏆 + Create Competition</button>
+            <button id="btnOpenLiveSyncModal" class="btn btn-primary">🌐 Auto-Sync Fixtures &amp; Live Results</button>
+            <button id="btnOpenNewCompModal" class="btn btn-outline">🏆 + Create Competition</button>
             <button id="btnOpenNewGameModal" class="btn btn-secondary">🏟️ + Add Game / Fixture</button>
             <button id="btnAdminTopDeleteComp" class="btn btn-danger-ghost">🗑️ Delete Active Competition</button>
           </div>
@@ -630,6 +646,57 @@
   </div>
 
   <!-- ==================================================================== -->
+  <!-- MODAL 6: LIVE INTERNET FIXTURE & SCORE AUTO-SYNC                     -->
+  <!-- ==================================================================== -->
+  <div id="liveSyncModal" class="modal-backdrop hidden no-print" role="dialog" aria-modal="true">
+    <div class="modal-card modal-lg">
+      <div class="modal-header">
+        <div>
+          <span class="sport-pill">Live Sports API Integration</span>
+          <h2>🌐 Auto-Populate Fixtures &amp; Update Live Results</h2>
+        </div>
+        <button class="modal-close" data-close-modal="liveSyncModal">&times;</button>
+      </div>
+      <form id="liveSyncForm" class="modal-body">
+        <p class="muted" style="margin-bottom:14px;">
+          Connects directly to public sports scoreboards (ESPN Live Site API, TheSportsDB &amp; GAA Inter-County feeds) to automatically import upcoming fixtures and update official final scores!
+        </p>
+
+        <div class="form-group">
+          <label for="liveFeedSelect">1. Select Real-World League / Event Feed *</label>
+          <select id="liveFeedSelect" required></select>
+        </div>
+
+        <div class="form-grid-2">
+          <div class="form-group">
+            <label for="liveSyncTargetMode">2. Where should fixtures &amp; scores go? *</label>
+            <select id="liveSyncTargetMode">
+              <option value="active">Sync into Currently Active Competition</option>
+              <option value="create_new">Create a Brand-New Competition from this Feed</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="liveSyncAutoCheck">3. Automatic Background Score Check</label>
+            <select id="liveSyncAutoCheck">
+              <option value="true" selected>Auto-update finished match scores when competition loads</option>
+              <option value="false">Manual sync only (when I click Sync)</option>
+            </select>
+          </div>
+        </div>
+
+        <div id="liveSyncStatusLog" class="score-inputs-box hidden" style="font-size:0.86rem;"></div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-ghost" data-close-modal="liveSyncModal">Close</button>
+          <button id="btnRunLiveSync" type="submit" class="btn btn-primary">
+            📥 Fetch Fixtures &amp; Sync Final Scores Now
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ==================================================================== -->
   <!-- PDF / PRINT EXPORT SHEET                                             -->
   <!-- ==================================================================== -->
   <section id="pdfExportContainer" class="pdf-export-sheet" aria-hidden="true"></section>
@@ -637,6 +704,6 @@
   <!-- Toast Container -->
   <div id="toastContainer" class="toast-container no-print" aria-live="polite"></div>
 
-  <script type="module" src="./app.js?v=4"></script>
+  <script type="module" src="./app.js?v=6"></script>
 </body>
 </html>

@@ -19,6 +19,12 @@ import {
   STARTER_DEMO_PREDICTIONS
 } from "./sports-data.js";
 
+import {
+  LIVE_LEAGUE_FEEDS,
+  getFeedById,
+  fetchFixturesAndResultsFromFeed
+} from "./live-sync.js";
+
 const state = {
   selectedSportFilter: "ALL",
   selectedRoundFilter: "ALL",
@@ -225,16 +231,16 @@ async function syncAllCollectionsFromFirestore() {
       state.games = Array.from(gMap.values());
     }
 
-    const predSnap = await getDocs(collection(state.fbDb, "predictions"));
-    if (!predSnap.empty) {
-      const cloudPreds = [];
-      predSnap.forEach((d) => cloudPreds.push({ id: d.id, ...d.data() }));
-      const pMap = new Map();
-      [...STARTER_DEMO_PREDICTIONS, ...cloudPreds].forEach((p) => pMap.set(p.id, p));
-      state.predictions = Array.from(pMap.values());
-    }
-
     if (state.user) {
+      const predSnap = await getDocs(collection(state.fbDb, "predictions"));
+      if (!predSnap.empty) {
+        const cloudPreds = [];
+        predSnap.forEach((d) => cloudPreds.push({ id: d.id, ...d.data() }));
+        const pMap = new Map();
+        [...STARTER_DEMO_PREDICTIONS, ...cloudPreds].forEach((p) => pMap.set(p.id, p));
+        state.predictions = Array.from(pMap.values());
+      }
+
       const regSnap = await getDocs(collection(state.fbDb, "registrations"));
       const cloudRegs = [];
       regSnap.forEach((d) => cloudRegs.push({ id: d.id, ...d.data() }));
@@ -424,14 +430,20 @@ function renderFixturesTab() {
   adminQuick.innerHTML = "";
   if (state.isAdmin) {
     adminQuick.innerHTML = `
+      <button class="btn btn-primary btn-sm" id="btnQuickLiveSync" title="Automatically fetch fixtures and live final scores from the internet">
+        🌐 Auto-Sync Fixtures &amp; Results
+      </button>
       <button class="btn btn-outline btn-sm" id="btnQuickNewComp">🏆 + New Competition</button>
-      <button class="btn btn-primary btn-sm" id="btnQuickAddFixture">🏟️ + Add Fixture</button>
+      <button class="btn btn-secondary btn-sm" id="btnQuickAddFixture">🏟️ + Add Fixture</button>
       ${
         activeComp
           ? `<button class="btn btn-danger-ghost btn-sm" id="btnQuickDeleteComp" title="Delete this entire competition and its fixtures">🗑️ Delete Competition</button>`
           : ""
       }
     `;
+    document.getElementById("btnQuickLiveSync").addEventListener("click", () => {
+      openLiveSyncModal();
+    });
     document.getElementById("btnQuickNewComp").addEventListener("click", () => {
       document.getElementById("newCompModal").classList.remove("hidden");
     });
@@ -666,6 +678,22 @@ function renderLeaderboardTab() {
   if (heroDeleteBtn) {
     heroDeleteBtn.classList.toggle("hidden", !state.isAdmin || !activeComp);
   }
+
+  const lockedCard = document.getElementById("leaderboardLockedCard");
+  const unlockedContent = document.getElementById("leaderboardUnlockedContent");
+  const tbody = document.getElementById("leaderboardTableBody");
+
+  // Hide all leaderboard & user data if not signed in
+  if (!state.user) {
+    if (lockedCard) lockedCard.classList.remove("hidden");
+    if (unlockedContent) unlockedContent.classList.add("hidden");
+    if (tbody) tbody.innerHTML = "";
+    return;
+  }
+
+  if (lockedCard) lockedCard.classList.add("hidden");
+  if (unlockedContent) unlockedContent.classList.remove("hidden");
+
   if (!activeComp) return;
 
   const rounds = getRoundsForCompetition(activeComp.id);
@@ -700,7 +728,6 @@ function renderLeaderboardTab() {
     activeComp.id,
     state.selectedLeaderboardRound
   );
-  const tbody = document.getElementById("leaderboardTableBody");
   tbody.innerHTML = "";
 
   if (standings.length === 0) {
@@ -737,10 +764,16 @@ function renderMyPredictionsTab() {
 
   if (!state.user) {
     container.innerHTML = `
-      <div style="grid-column:1/-1; background:#fff; padding:36px; border-radius:14px; text-align:center;">
-        <h3>Sign in to view and track your personal predictions</h3>
+      <div style="grid-column:1/-1; background:#fff; padding:44px 24px; border-radius:14px; text-align:center; border:1px solid var(--border);">
+        <div style="font-size: 2.6rem; margin-bottom: 8px;">🔒</div>
+        <h3>Sign In to View Your Predictions &amp; Points</h3>
+        <p class="muted" style="margin-bottom: 18px;">User prediction details and point breakdowns are only visible to logged-in members.</p>
+        <button id="btnSignInFromMyPicks" type="button" class="btn btn-primary">🔐 Sign In / Create Account</button>
       </div>
     `;
+    document.getElementById("btnSignInFromMyPicks")?.addEventListener("click", () => {
+      document.getElementById("authModal").classList.remove("hidden");
+    });
     return;
   }
 
@@ -1190,6 +1223,11 @@ async function approveRegistration(reg) {
 // ============================================================================
 
 async function exportCompetitionPdf() {
+  if (!state.user) {
+    document.getElementById("authModal")?.classList.remove("hidden");
+    showToast("🔒 Please sign in to view or export the Competition Leaderboard!");
+    return;
+  }
   const comp = getActiveCompetition();
   if (!comp) return;
   const sport = getSportById(comp.sportId);
@@ -1309,6 +1347,174 @@ function renderAuthUI() {
 }
 
 // ============================================================================
+// LIVE INTERNET FIXTURE & SCORE SYNC CONTROLLER
+// ============================================================================
+
+function openLiveSyncModal() {
+  const activeComp = getActiveCompetition();
+  const feedSelect = document.getElementById("liveFeedSelect");
+  if (feedSelect && activeComp) {
+    // Pre-select a matching feed for the active competition's sport if available
+    const matchingFeed =
+      (activeComp.linkedFeedId && getFeedById(activeComp.linkedFeedId)) ||
+      LIVE_LEAGUE_FEEDS.find((f) => f.sportId === activeComp.sportId);
+    if (matchingFeed) {
+      feedSelect.value = matchingFeed.id;
+    }
+  }
+  const logBox = document.getElementById("liveSyncStatusLog");
+  if (logBox) {
+    logBox.classList.add("hidden");
+    logBox.innerHTML = "";
+  }
+  document.getElementById("liveSyncModal")?.classList.remove("hidden");
+}
+
+async function runLiveInternetSync(feedId, targetMode = "active") {
+  const feed = getFeedById(feedId);
+  if (!feed) return;
+
+  const logBox = document.getElementById("liveSyncStatusLog");
+  const btn = document.getElementById("btnRunLiveSync");
+  if (logBox) {
+    logBox.classList.remove("hidden");
+    logBox.innerHTML = `⏳ Connecting to live scoreboard feed for <strong>${escapeHtml(feed.name)}</strong>...`;
+  }
+  if (btn) btn.disabled = true;
+
+  try {
+    const fetchedMatches = await fetchFixturesAndResultsFromFeed(feedId);
+
+    let targetComp = getActiveCompetition();
+    if (targetMode === "create_new" || !targetComp) {
+      const cleanTitle = feed.name.replace(/^[^\w]+/, "").replace(/\s*\(.*?\)\s*$/, "");
+      targetComp = {
+        id: "comp-" + Date.now(),
+        title: cleanTitle,
+        sportId: feed.sportId,
+        season: "2026/27 Live",
+        description: `Auto-synced from ${cleanTitle} live internet scoreboard.`,
+        linkedFeedId: feed.id,
+        requiresApproval: false,
+        resultPts: 3,
+        exactBonusPts: 3,
+        closeBonusPts: 2,
+        tier1Margin: 7,
+        tier2Margin: 14
+      };
+      state.competitions.unshift(targetComp);
+      state.activeCompetitionId = targetComp.id;
+
+      if (state.firebaseReady && state.isAdmin && state.fbDb) {
+        const { doc, setDoc } = state.fbModules;
+        await setDoc(doc(state.fbDb, "competitions", targetComp.id), targetComp);
+      }
+    } else {
+      targetComp.linkedFeedId = feed.id;
+      if (state.firebaseReady && state.isAdmin && state.fbDb) {
+        const { doc, setDoc } = state.fbModules;
+        await setDoc(doc(state.fbDb, "competitions", targetComp.id), targetComp, { merge: true });
+      }
+    }
+
+    let addedCount = 0;
+    let updatedScoresCount = 0;
+    const touchedGames = [];
+
+    fetchedMatches.forEach((incoming) => {
+      // Find existing match in this competition by externalId OR by matching Home + Away team names
+      const existing = state.games.find(
+        (g) =>
+          g.competitionId === targetComp.id &&
+          ((incoming.externalId && g.externalId === incoming.externalId) ||
+            (g.homeTeam.toLowerCase().trim() === incoming.homeTeam.toLowerCase().trim() &&
+              g.awayTeam.toLowerCase().trim() === incoming.awayTeam.toLowerCase().trim()))
+      );
+
+      if (existing) {
+        // Update status and official final scores if changed
+        const wasCompleted = existing.status === "completed";
+        const scoreChanged =
+          existing.homeScore !== incoming.homeScore ||
+          existing.awayScore !== incoming.awayScore ||
+          existing.status !== incoming.status;
+
+        existing.externalId = incoming.externalId || existing.externalId;
+        existing.venue = incoming.venue || existing.venue;
+        existing.kickoffTime = incoming.kickoffTime || existing.kickoffTime;
+
+        if (incoming.status === "completed" || incoming.status === "locked") {
+          existing.status = incoming.status;
+          existing.homeScore = incoming.homeScore;
+          existing.awayScore = incoming.awayScore;
+          existing.homeGoals = incoming.homeGoals ?? existing.homeGoals ?? 0;
+          existing.homePoints = incoming.homePoints ?? existing.homePoints ?? 0;
+          existing.awayGoals = incoming.awayGoals ?? existing.awayGoals ?? 0;
+          existing.awayPoints = incoming.awayPoints ?? existing.awayPoints ?? 0;
+          if (!wasCompleted || scoreChanged) {
+            updatedScoresCount += 1;
+            touchedGames.push(existing);
+          }
+        }
+      } else {
+        const newGame = {
+          id: `game-${incoming.externalId || Date.now() + "-" + Math.random().toString(36).slice(2, 6)}`,
+          externalId: incoming.externalId,
+          competitionId: targetComp.id,
+          sportId: targetComp.sportId,
+          roundName: incoming.roundName || "Round 1",
+          homeTeam: incoming.homeTeam,
+          awayTeam: incoming.awayTeam,
+          venue: incoming.venue || "Official Venue",
+          kickoffTime: incoming.kickoffTime,
+          status: incoming.status,
+          homeGoals: incoming.homeGoals || 0,
+          homePoints: incoming.homePoints || 0,
+          homeScore: incoming.homeScore || 0,
+          awayGoals: incoming.awayGoals || 0,
+          awayPoints: incoming.awayPoints || 0,
+          awayScore: incoming.awayScore || 0
+        };
+        state.games.push(newGame);
+        addedCount += 1;
+        if (newGame.status === "completed") updatedScoresCount += 1;
+        touchedGames.push(newGame);
+      }
+    });
+
+    state.selectedRoundFilter = "ALL";
+    saveToLocalStorage();
+
+    if (state.firebaseReady && state.isAdmin && state.fbDb) {
+      const { doc, setDoc } = state.fbModules;
+      for (const g of touchedGames) {
+        await setDoc(doc(state.fbDb, "games", g.id), g);
+      }
+    }
+
+    renderAll();
+
+    if (logBox) {
+      logBox.innerHTML = `
+        ✅ <strong>Live Sync Complete!</strong><br/>
+        • Processed <strong>${fetchedMatches.length}</strong> matches from ${escapeHtml(feed.name)}<br/>
+        • Added <strong>${addedCount}</strong> new fixtures to <strong>${escapeHtml(targetComp.title)}</strong><br/>
+        • Updated <strong>${updatedScoresCount}</strong> final match results &amp; recalculated Leaderboard!
+      `;
+    }
+    showToast(`🌐 Synced ${addedCount} new fixtures & ${updatedScoresCount} results!`);
+  } catch (err) {
+    console.error("Live sync error:", err);
+    if (logBox) {
+      logBox.innerHTML = `⚠️ Could not reach live scoreboard feed: ${escapeHtml(err.message)}`;
+    }
+    showToast("⚠️ Live sync failed: " + err.message);
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+// ============================================================================
 // UI EVENT BINDINGS
 // ============================================================================
 
@@ -1321,6 +1527,17 @@ function populateSportSelects() {
     opt.textContent = `${s.emoji} ${s.name}`;
     compSport.appendChild(opt);
   });
+
+  const feedSelect = document.getElementById("liveFeedSelect");
+  if (feedSelect) {
+    feedSelect.innerHTML = "";
+    LIVE_LEAGUE_FEEDS.forEach((f) => {
+      const opt = document.createElement("option");
+      opt.value = f.id;
+      opt.textContent = f.name;
+      feedSelect.appendChild(opt);
+    });
+  }
 }
 
 function bindUIEvents() {
@@ -1448,6 +1665,18 @@ function bindUIEvents() {
     document.getElementById("predictModal").classList.add("hidden");
     renderAll();
     showToast(`🎯 Prediction locked in for ${game.homeTeam} vs ${game.awayTeam}!`);
+  });
+
+  // Admin: Live Internet Auto-Sync Modal & Form
+  document.getElementById("btnOpenLiveSyncModal")?.addEventListener("click", () => {
+    openLiveSyncModal();
+  });
+
+  document.getElementById("liveSyncForm")?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const feedId = document.getElementById("liveFeedSelect").value;
+    const targetMode = document.getElementById("liveSyncTargetMode").value;
+    await runLiveInternetSync(feedId, targetMode);
   });
 
   // Admin: Create & Delete Competition Buttons
@@ -1609,9 +1838,12 @@ function bindUIEvents() {
     showToast("🧪 Enabled Demo Admin Preview! (Configure /admins/{uid} in Firebase for production)");
   });
 
-  // PDF Export
+  // PDF Export & Leaderboard Sign-In Prompt
   document.getElementById("btnDownloadPdf").addEventListener("click", exportCompetitionPdf);
   document.getElementById("btnPrintLeaderboard").addEventListener("click", exportCompetitionPdf);
+  document.getElementById("btnSignInFromLeaderboard")?.addEventListener("click", () => {
+    document.getElementById("authModal")?.classList.remove("hidden");
+  });
 
   // Auth Modal
   document.querySelectorAll(".auth-tab").forEach((t) => {
