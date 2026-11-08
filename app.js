@@ -918,9 +918,26 @@ function updateGaaLivePreview() {
 // ============================================================================
 
 function renderAdminTab() {
+  const adminNavTab = document.getElementById("adminNavTab");
+  const adminTabPanel = document.getElementById("tab-admin");
   const locked = document.getElementById("adminLockedCard");
   const dash = document.getElementById("adminDashboardContent");
   const pendingBadge = document.getElementById("adminPendingRegBadge");
+
+  // Hide the Admin navigation tab completely when not logged in
+  if (!state.user) {
+    adminNavTab?.classList.add("hidden");
+    pendingBadge?.classList.add("hidden");
+    if (adminTabPanel?.classList.contains("active")) {
+      document.querySelectorAll(".nav-tab").forEach((t) => t.classList.remove("active"));
+      document.querySelectorAll(".tab-panel").forEach((p) => p.classList.remove("active"));
+      document.querySelector('.nav-tab[data-tab="fixtures"]')?.classList.add("active");
+      document.getElementById("tab-fixtures")?.classList.add("active");
+    }
+    return;
+  }
+
+  adminNavTab?.classList.remove("hidden");
 
   const pendingRegs = state.registrations.filter((r) => r.status === "pending");
   if (pendingRegs.length > 0 && state.isAdmin) {
