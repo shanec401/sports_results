@@ -21,6 +21,8 @@ import {
 
 const state = {
   selectedSportFilter: "ALL",
+  selectedRoundFilter: "ALL",
+  selectedLeaderboardRound: "ALL",
   activeCompetitionId: STARTER_COMPETITIONS[0].id,
   competitions: structuredClone(STARTER_COMPETITIONS),
   deletedCompetitionIds: [],
@@ -393,10 +395,29 @@ function renderCompetitionBanner() {
   }
 }
 
+function getRoundsForCompetition(compId) {
+  const seen = new Set();
+  const rounds = [];
+  state.games
+    .filter((g) => g.competitionId === compId)
+    .forEach((g) => {
+      const rName = (g.roundName || "Round 1").trim();
+      if (rName && !seen.has(rName)) {
+        seen.add(rName);
+        rounds.push(rName);
+      }
+    });
+  return rounds;
+}
+
 function renderFixturesTab() {
   const activeComp = getActiveCompetition();
   const container = document.getElementById("gamesListContainer");
+  const roundBar = document.getElementById("roundFilterBar");
+  const roundDropdown = document.getElementById("roundSelectDropdown");
   container.innerHTML = "";
+  if (roundBar) roundBar.innerHTML = "";
+  if (roundDropdown) roundDropdown.innerHTML = `<option value="ALL">All Rounds</option>`;
 
   // Admin quick buttons
   const adminQuick = document.getElementById("fixturesAdminQuickActions");
@@ -429,11 +450,57 @@ function renderFixturesTab() {
   const sport = getSportById(activeComp.sportId);
   document.getElementById("fixturesHeading").textContent = `${sport.emoji} ${activeComp.title} — Fixtures`;
 
-  const compGames = state.games.filter((g) => g.competitionId === activeComp.id);
+  const allCompGames = state.games.filter((g) => g.competitionId === activeComp.id);
+  const rounds = getRoundsForCompetition(activeComp.id);
+
+  // Reset round filter if the selected round doesn't exist in this competition
+  if (state.selectedRoundFilter !== "ALL" && !rounds.includes(state.selectedRoundFilter)) {
+    state.selectedRoundFilter = "ALL";
+  }
+
+  // Render Round Filter Chips & Dropdown
+  if (roundBar) {
+    const allChip = document.createElement("button");
+    allChip.type = "button";
+    allChip.className = `round-chip ${state.selectedRoundFilter === "ALL" ? "active" : ""}`;
+    allChip.textContent = `All Rounds (${allCompGames.length})`;
+    allChip.addEventListener("click", () => {
+      state.selectedRoundFilter = "ALL";
+      renderFixturesTab();
+    });
+    roundBar.appendChild(allChip);
+
+    rounds.forEach((rName) => {
+      const count = allCompGames.filter((g) => (g.roundName || "Round 1").trim() === rName).length;
+      const chip = document.createElement("button");
+      chip.type = "button";
+      chip.className = `round-chip ${state.selectedRoundFilter === rName ? "active" : ""}`;
+      chip.textContent = `${rName} (${count})`;
+      chip.addEventListener("click", () => {
+        state.selectedRoundFilter = rName;
+        renderFixturesTab();
+      });
+      roundBar.appendChild(chip);
+
+      if (roundDropdown) {
+        const opt = document.createElement("option");
+        opt.value = rName;
+        opt.textContent = `${rName} (${count} ${count === 1 ? "fixture" : "fixtures"})`;
+        if (state.selectedRoundFilter === rName) opt.selected = true;
+        roundDropdown.appendChild(opt);
+      }
+    });
+  }
+
+  const compGames =
+    state.selectedRoundFilter === "ALL"
+      ? allCompGames
+      : allCompGames.filter((g) => (g.roundName || "Round 1").trim() === state.selectedRoundFilter);
+
   if (compGames.length === 0) {
     container.innerHTML = `
       <div style="grid-column: 1/-1; background:#fff; padding:40px; border-radius:14px; text-align:center;">
-        <h3>No fixtures scheduled in this competition yet</h3>
+        <h3>No fixtures scheduled in this round yet</h3>
         <p class="muted">Admins can click "+ Add Fixture" to schedule games for this competition.</p>
       </div>
     `;
@@ -544,11 +611,15 @@ function renderFixturesTab() {
 // LEADERBOARD ENGINE (PER COMPETITION)
 // ============================================================================
 
-function computeCompetitionLeaderboard(competitionId) {
+function computeCompetitionLeaderboard(competitionId, roundFilter = "ALL") {
   const comp = state.competitions.find((c) => c.id === competitionId);
   if (!comp) return [];
 
-  const compGames = state.games.filter((g) => g.competitionId === competitionId);
+  const compGames = state.games.filter(
+    (g) =>
+      g.competitionId === competitionId &&
+      (roundFilter === "ALL" || (g.roundName || "Round 1").trim() === roundFilter)
+  );
   const gameMap = new Map();
   compGames.forEach((g) => gameMap.set(g.id, g));
 
@@ -597,11 +668,38 @@ function renderLeaderboardTab() {
   }
   if (!activeComp) return;
 
-  const sport = getSportById(activeComp.sportId);
-  document.getElementById("leaderboardHeading").textContent =
-    `📊 ${sport.emoji} ${activeComp.title} — Official Leaderboard`;
+  const rounds = getRoundsForCompetition(activeComp.id);
+  if (
+    state.selectedLeaderboardRound !== "ALL" &&
+    !rounds.includes(state.selectedLeaderboardRound)
+  ) {
+    state.selectedLeaderboardRound = "ALL";
+  }
 
-  const standings = computeCompetitionLeaderboard(activeComp.id);
+  const lbRoundSel = document.getElementById("leaderboardRoundSelect");
+  if (lbRoundSel) {
+    lbRoundSel.innerHTML = `<option value="ALL">🏆 Full Competition (All Rounds)</option>`;
+    rounds.forEach((rName) => {
+      const opt = document.createElement("option");
+      opt.value = rName;
+      opt.textContent = `📅 ${rName} Standings`;
+      if (state.selectedLeaderboardRound === rName) opt.selected = true;
+      lbRoundSel.appendChild(opt);
+    });
+  }
+
+  const sport = getSportById(activeComp.sportId);
+  const roundSuffix =
+    state.selectedLeaderboardRound === "ALL"
+      ? "Official Leaderboard"
+      : `${state.selectedLeaderboardRound} Standings`;
+  document.getElementById("leaderboardHeading").textContent =
+    `📊 ${sport.emoji} ${activeComp.title} — ${roundSuffix}`;
+
+  const standings = computeCompetitionLeaderboard(
+    activeComp.id,
+    state.selectedLeaderboardRound
+  );
   const tbody = document.getElementById("leaderboardTableBody");
   tbody.innerHTML = "";
 
@@ -973,7 +1071,31 @@ function openGameFormModal(game = null) {
     compSelect.appendChild(opt);
   });
 
-  document.getElementById("gameRound").value = game?.roundName || "Round 1";
+  const defaultRound =
+    game?.roundName ||
+    (state.selectedRoundFilter !== "ALL" ? state.selectedRoundFilter : "Round 1");
+  document.getElementById("gameRound").value = defaultRound;
+
+  // Populate round datalist with existing rounds in this competition + standard stages
+  const datalist = document.getElementById("roundSuggestionsList");
+  if (datalist) {
+    const existingRounds = getRoundsForCompetition(compSelect.value);
+    const standardRounds = [
+      "Round 1",
+      "Round 2",
+      "Round 3",
+      "Round 4",
+      "Round 5",
+      "Quarter-Final",
+      "Semi-Final",
+      "Final"
+    ];
+    const allSuggested = Array.from(new Set([...existingRounds, ...standardRounds]));
+    datalist.innerHTML = allSuggested
+      .map((r) => `<option value="${escapeHtml(r)}"></option>`)
+      .join("");
+  }
+
   document.getElementById("gameHomeTeam").value = game?.homeTeam || "";
   document.getElementById("gameAwayTeam").value = game?.awayTeam || "";
   document.getElementById("gameVenue").value = game?.venue || "";
@@ -1215,8 +1337,22 @@ function bindUIEvents() {
   // Active Competition Selector
   document.getElementById("activeCompetitionSelect").addEventListener("change", (e) => {
     state.activeCompetitionId = e.target.value;
+    state.selectedRoundFilter = "ALL";
+    state.selectedLeaderboardRound = "ALL";
     saveToLocalStorage();
     renderAll();
+  });
+
+  // Fixtures Round Dropdown Selector
+  document.getElementById("roundSelectDropdown")?.addEventListener("change", (e) => {
+    state.selectedRoundFilter = e.target.value;
+    renderFixturesTab();
+  });
+
+  // Leaderboard Round Dropdown Selector
+  document.getElementById("leaderboardRoundSelect")?.addEventListener("change", (e) => {
+    state.selectedLeaderboardRound = e.target.value;
+    renderLeaderboardTab();
   });
 
   // Outcome Picker buttons inside Prediction Modal

@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Outfit:wght@600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="./styles.css?v=2" />
+  <link rel="stylesheet" href="./styles.css?v=4" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js" defer></script>
 </head>
 <body>
@@ -110,6 +110,19 @@
         </div>
       </div>
 
+      <!-- Round Filter Bar (Filter by Round within the Active Competition) -->
+      <div class="rounds-filter-bar">
+        <div class="rounds-chips-wrap" id="roundFilterBar" aria-label="Filter Fixtures by Round">
+          <!-- Populated dynamically by app.js -->
+        </div>
+        <div class="rounds-dropdown-wrap">
+          <label for="roundSelectDropdown" class="muted" style="font-size:0.8rem; font-weight:600;">Jump to Round:</label>
+          <select id="roundSelectDropdown" class="round-select">
+            <option value="ALL">All Rounds</option>
+          </select>
+        </div>
+      </div>
+
       <div id="gamesListContainer" class="games-grid">
         <!-- Populated dynamically by app.js -->
       </div>
@@ -126,7 +139,10 @@
             Points are automatically awarded as soon as an Admin enters the final score of a fixture.
           </p>
         </div>
-        <div>
+        <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+          <select id="leaderboardRoundSelect" class="round-select" aria-label="Filter Leaderboard by Round">
+            <option value="ALL">🏆 Full Competition (All Rounds)</option>
+          </select>
           <button id="btnPrintLeaderboard" class="btn btn-outline btn-sm">🖨️ Print Standings</button>
         </div>
       </div>
@@ -430,7 +446,17 @@
           </div>
           <div class="form-group">
             <label for="gameRound">Round / Stage *</label>
-            <input id="gameRound" type="text" required placeholder="e.g. Round 1 / Quarter-Final / Week 4" value="Round 1" />
+            <input id="gameRound" type="text" list="roundSuggestionsList" required placeholder="e.g. Round 1 / Quarter-Final / Week 4" value="Round 1" />
+            <datalist id="roundSuggestionsList">
+              <option value="Round 1"></option>
+              <option value="Round 2"></option>
+              <option value="Round 3"></option>
+              <option value="Round 4"></option>
+              <option value="Round 5"></option>
+              <option value="Quarter-Final"></option>
+              <option value="Semi-Final"></option>
+              <option value="Final"></option>
+            </datalist>
           </div>
         </div>
 
@@ -611,6 +637,6 @@
   <!-- Toast Container -->
   <div id="toastContainer" class="toast-container no-print" aria-live="polite"></div>
 
-  <script type="module" src="./app.js?v=3"></script>
+  <script type="module" src="./app.js?v=4"></script>
 </body>
 </html>
