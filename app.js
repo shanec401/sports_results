@@ -346,6 +346,10 @@ function renderCompetitionBanner() {
   });
 
   const activeComp = getActiveCompetition();
+  const heroDeleteBtn = document.getElementById("btnHeroDeleteComp");
+  if (heroDeleteBtn) {
+    heroDeleteBtn.classList.toggle("hidden", !state.isAdmin || !activeComp);
+  }
   if (!activeComp) return;
 
   const sport = getSportById(activeComp.sportId);
@@ -584,6 +588,10 @@ function computeCompetitionLeaderboard(competitionId) {
 
 function renderLeaderboardTab() {
   const activeComp = getActiveCompetition();
+  const heroDeleteBtn = document.getElementById("btnHeroDeleteComp");
+  if (heroDeleteBtn) {
+    heroDeleteBtn.classList.toggle("hidden", !state.isAdmin || !activeComp);
+  }
   if (!activeComp) return;
 
   const sport = getSportById(activeComp.sportId);
@@ -1303,9 +1311,21 @@ function bindUIEvents() {
     showToast(`🎯 Prediction locked in for ${game.homeTeam} vs ${game.awayTeam}!`);
   });
 
-  // Admin: Create New Competition
+  // Admin: Create & Delete Competition Buttons
   document.getElementById("btnOpenNewCompModal").addEventListener("click", () => {
     document.getElementById("newCompModal").classList.remove("hidden");
+  });
+
+  document.getElementById("btnHeroDeleteComp")?.addEventListener("click", () => {
+    if (state.activeCompetitionId) {
+      deleteCompetition(state.activeCompetitionId);
+    }
+  });
+
+  document.getElementById("btnAdminTopDeleteComp")?.addEventListener("click", () => {
+    if (state.activeCompetitionId) {
+      deleteCompetition(state.activeCompetitionId);
+    }
   });
 
   document.getElementById("newCompForm").addEventListener("submit", async (e) => {

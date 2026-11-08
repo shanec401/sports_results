@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Outfit:wght@600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="./styles.css" />
+  <link rel="stylesheet" href="./styles.css?v=2" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js" defer></script>
 </head>
 <body>
@@ -70,6 +70,9 @@
         <div class="comp-selector-row">
           <label for="activeCompetitionSelect" class="comp-select-label">Active Competition:</label>
           <select id="activeCompetitionSelect" class="comp-select"></select>
+          <button id="btnHeroDeleteComp" type="button" class="btn btn-danger-ghost btn-sm hidden" title="Delete the currently selected competition">
+            🗑️ Delete Competition
+          </button>
         </div>
         <p id="activeCompDescription" class="comp-desc"></p>
         <div id="registrationStatusBox" class="reg-status-box"></div>
@@ -212,6 +215,7 @@
           <div class="admin-top-actions">
             <button id="btnOpenNewCompModal" class="btn btn-primary">🏆 + Create Competition</button>
             <button id="btnOpenNewGameModal" class="btn btn-secondary">🏟️ + Add Game / Fixture</button>
+            <button id="btnAdminTopDeleteComp" class="btn btn-danger-ghost">🗑️ Delete Active Competition</button>
           </div>
         </div>
 
@@ -607,6 +611,6 @@
   <!-- Toast Container -->
   <div id="toastContainer" class="toast-container no-print" aria-live="polite"></div>
 
-  <script type="module" src="./app.js"></script>
+  <script type="module" src="./app.js?v=2"></script>
 </body>
 </html>
