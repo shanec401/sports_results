@@ -23,6 +23,7 @@ const state = {
   selectedSportFilter: "ALL",
   activeCompetitionId: STARTER_COMPETITIONS[0].id,
   competitions: structuredClone(STARTER_COMPETITIONS),
+  deletedCompetitionIds: [],
   games: structuredClone(STARTER_GAMES),
   predictions: structuredClone(STARTER_DEMO_PREDICTIONS),
   registrations: [], // { id: compId__uid, competitionId, userId, userName, status: 'pending'|'approved' }
@@ -79,11 +80,18 @@ function loadFromLocalStorage() {
     const raw = localStorage.getItem("arenapick_state_v1");
     if (raw) {
       const saved = JSON.parse(raw);
-      if (Array.isArray(saved.competitions) && saved.competitions.length) {
-        state.competitions = saved.competitions;
+      if (Array.isArray(saved.deletedCompetitionIds)) {
+        state.deletedCompetitionIds = saved.deletedCompetitionIds;
       }
-      if (Array.isArray(saved.games) && saved.games.length) {
-        state.games = saved.games;
+      if (Array.isArray(saved.competitions)) {
+        state.competitions = saved.competitions.filter(
+          (c) => !state.deletedCompetitionIds.includes(c.id) && !c.deleted
+        );
+      }
+      if (Array.isArray(saved.games)) {
+        state.games = saved.games.filter(
+          (g) => !state.deletedCompetitionIds.includes(g.competitionId)
+        );
       }
       if (Array.isArray(saved.predictions)) {
         state.predictions = saved.predictions;
@@ -110,6 +118,7 @@ function saveToLocalStorage() {
     JSON.stringify({
       activeCompetitionId: state.activeCompetitionId,
       competitions: state.competitions,
+      deletedCompetitionIds: state.deletedCompetitionIds,
       games: state.games,
       predictions: state.predictions,
       registrations: state.registrations
@@ -178,11 +187,27 @@ async function syncAllCollectionsFromFirestore() {
     const compSnap = await getDocs(collection(state.fbDb, "competitions"));
     if (!compSnap.empty) {
       const cloudComps = [];
-      compSnap.forEach((d) => cloudComps.push({ id: d.id, ...d.data() }));
-      // Merge cloud competitions with starter competitions
+      compSnap.forEach((d) => {
+        const data = d.data();
+        if (data.deleted && !state.deletedCompetitionIds.includes(d.id)) {
+          state.deletedCompetitionIds.push(d.id);
+        }
+        cloudComps.push({ id: d.id, ...data });
+      });
+      // Merge cloud competitions with starter competitions, excluding any deleted ones
       const map = new Map();
-      [...STARTER_COMPETITIONS, ...cloudComps].forEach((c) => map.set(c.id, c));
+      [...STARTER_COMPETITIONS, ...cloudComps].forEach((c) => {
+        if (!c.deleted && !state.deletedCompetitionIds.includes(c.id)) {
+          map.set(c.id, c);
+        } else {
+          map.delete(c.id);
+        }
+      });
       state.competitions = Array.from(map.values());
+    } else {
+      state.competitions = state.competitions.filter(
+        (c) => !state.deletedCompetitionIds.includes(c.id)
+      );
     }
 
     const gameSnap = await getDocs(collection(state.fbDb, "games"));
@@ -190,7 +215,11 @@ async function syncAllCollectionsFromFirestore() {
       const cloudGames = [];
       gameSnap.forEach((d) => cloudGames.push({ id: d.id, ...d.data() }));
       const gMap = new Map();
-      [...STARTER_GAMES, ...cloudGames].forEach((g) => gMap.set(g.id, g));
+      [...STARTER_GAMES, ...cloudGames].forEach((g) => {
+        if (!state.deletedCompetitionIds.includes(g.competitionId)) {
+          gMap.set(g.id, g);
+        }
+      });
       state.games = Array.from(gMap.values());
     }
 
@@ -369,6 +398,11 @@ function renderFixturesTab() {
     adminQuick.innerHTML = `
       <button class="btn btn-outline btn-sm" id="btnQuickNewComp">🏆 + New Competition</button>
       <button class="btn btn-primary btn-sm" id="btnQuickAddFixture">🏟️ + Add Fixture</button>
+      ${
+        activeComp
+          ? `<button class="btn btn-danger-ghost btn-sm" id="btnQuickDeleteComp" title="Delete this entire competition and its fixtures">🗑️ Delete Competition</button>`
+          : ""
+      }
     `;
     document.getElementById("btnQuickNewComp").addEventListener("click", () => {
       document.getElementById("newCompModal").classList.remove("hidden");
@@ -376,6 +410,12 @@ function renderFixturesTab() {
     document.getElementById("btnQuickAddFixture").addEventListener("click", () => {
       openGameFormModal(null);
     });
+    const delCompBtn = document.getElementById("btnQuickDeleteComp");
+    if (delCompBtn && activeComp) {
+      delCompBtn.addEventListener("click", () => {
+        deleteCompetition(activeComp.id);
+      });
+    }
   }
 
   if (!activeComp) return;
@@ -834,15 +874,73 @@ function renderAdminTab() {
         <strong>${sport.emoji} ${escapeHtml(c.title)}</strong>
         <div class="muted" style="font-size:0.78rem;">${escapeHtml(c.season)} • Result: +${c.resultPts}pts | Exact: +${c.exactBonusPts}pts | Within 5: +${c.closeBonusPts}pts</div>
       </div>
-      <button class="btn btn-outline btn-sm" data-select-comp="${c.id}">View</button>
+      <div style="display:flex; gap:6px;">
+        <button class="btn btn-outline btn-sm" data-select-comp="${c.id}">View</button>
+        <button class="btn btn-danger-ghost btn-sm" data-delete-comp="${c.id}" title="Delete this competition">🗑️ Delete</button>
+      </div>
     `;
     row.querySelector(`[data-select-comp="${c.id}"]`).addEventListener("click", () => {
       state.activeCompetitionId = c.id;
       renderAll();
       showToast(`Switched active competition to ${c.title}`);
     });
+    row.querySelector(`[data-delete-comp="${c.id}"]`).addEventListener("click", () => {
+      deleteCompetition(c.id);
+    });
     compList.appendChild(row);
   });
+}
+
+async function deleteCompetition(compId) {
+  const comp = state.competitions.find((c) => c.id === compId);
+  if (!comp) return;
+
+  const confirmed = window.confirm(
+    `Are you sure you want to delete "${comp.title}" and all of its fixtures?`
+  );
+  if (!confirmed) return;
+
+  const gamesToDelete = state.games.filter((g) => g.competitionId === compId);
+
+  if (!state.deletedCompetitionIds.includes(compId)) {
+    state.deletedCompetitionIds.push(compId);
+  }
+  state.competitions = state.competitions.filter((c) => c.id !== compId);
+  state.games = state.games.filter((g) => g.competitionId !== compId);
+  state.predictions = state.predictions.filter((p) => p.competitionId !== compId);
+  state.registrations = state.registrations.filter((r) => r.competitionId !== compId);
+
+  if (state.activeCompetitionId === compId) {
+    state.activeCompetitionId = state.competitions[0]?.id || "";
+  }
+
+  saveToLocalStorage();
+
+  if (state.firebaseReady && state.isAdmin && state.fbDb) {
+    try {
+      const { doc, setDoc, deleteDoc } = state.fbModules;
+      const isStarter = STARTER_COMPETITIONS.some((s) => s.id === compId);
+      if (isStarter) {
+        // Mark starter competition as deleted in Firestore so it stays deleted for all users
+        await setDoc(doc(state.fbDb, "competitions", compId), {
+          id: compId,
+          deleted: true,
+          deletedAt: new Date().toISOString()
+        });
+      } else {
+        await deleteDoc(doc(state.fbDb, "competitions", compId));
+      }
+
+      for (const g of gamesToDelete) {
+        await deleteDoc(doc(state.fbDb, "games", g.id));
+      }
+    } catch (err) {
+      console.warn("Firestore delete competition error:", err);
+    }
+  }
+
+  renderAll();
+  showToast(`🗑️ Deleted competition "${comp.title}".`);
 }
 
 function openGameFormModal(game = null) {
