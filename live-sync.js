@@ -34,6 +34,14 @@ export const LIVE_LEAGUE_FEEDS = [
   },
   // RUGBY UNION
   {
+    id: "rugby-nations-cup",
+    name: "🏉 Rugby Nations Cup / Nations Championship (Autumn Nations Series)",
+    sportId: "rugby-union",
+    provider: "rugby-nations-hybrid",
+    espnPath: "rugby/289234",
+    theSportsDbId: "5156"
+  },
+  {
     id: "espn-urc",
     name: "🏉 United Rugby Championship - URC (Leinster, Munster, Ulster, Connacht)",
     sportId: "rugby-union",
@@ -56,6 +64,14 @@ export const LIVE_LEAGUE_FEEDS = [
     provider: "espn",
     espnPath: "rugby/271937",
     theSportsDbId: "4550"
+  },
+  {
+    id: "espn-rugby-championship",
+    name: "🏉 The Rugby Championship (NZ, South Africa, Australia, Argentina)",
+    sportId: "rugby-union",
+    provider: "espn",
+    espnPath: "rugby/244293",
+    theSportsDbId: "4986"
   },
   // RUGBY LEAGUE
   {
@@ -145,7 +161,7 @@ export async function fetchFixturesAndResultsFromFeed(feedId) {
   let matches = [];
 
   // 1. Try ESPN Public Scoreboard API first if configured
-  if (feed.provider === "espn" && feed.espnPath) {
+  if ((feed.provider === "espn" || feed.provider === "rugby-nations-hybrid") && feed.espnPath) {
     try {
       const espnMatches = await fetchFromEspnApi(feed);
       if (espnMatches.length > 0) {
@@ -168,7 +184,15 @@ export async function fetchFixturesAndResultsFromFeed(feedId) {
     }
   }
 
-  // 3. For GAA Hurling & Football, enrich with full multi-round inter-county fixture & result feed
+  // 3. For Rugby Nations Cup / Nations Championship, merge full multi-round schedule
+  if (feed.provider === "rugby-nations-hybrid") {
+    const nationsCupMatches = getCuratedRugbyNationsCupFixtures();
+    const map = new Map();
+    [...nationsCupMatches, ...matches].forEach((m) => map.set(m.externalId, m));
+    matches = Array.from(map.values());
+  }
+
+  // 4. For GAA Hurling & Football, enrich with full multi-round inter-county fixture & result feed
   if (feed.provider === "gaa-hybrid") {
     const gaaMatches = getCuratedGaaFixtures(feed.id);
     matches = [...matches, ...gaaMatches];
@@ -275,6 +299,482 @@ async function fetchFromTheSportsDb(feed) {
       awayPoints: 0
     };
   });
+}
+
+function getCuratedRugbyNationsCupFixtures() {
+  return [
+    // ROUND 1 (July Window - Southern Hemisphere Series)
+    {
+      externalId: "rnc-2026-r1-aus-ire",
+      sportId: "rugby-union",
+      roundName: "Round 1",
+      homeTeam: "Australia",
+      awayTeam: "Ireland",
+      venue: "Allianz Stadium, Sydney",
+      kickoffTime: "2026-07-04T10:55",
+      status: "completed",
+      homeScore: 31,
+      awayScore: 33,
+      homeGoals: 0,
+      homePoints: 0,
+      awayGoals: 0,
+      awayPoints: 0
+    },
+    {
+      externalId: "rnc-2026-r1-nz-fra",
+      sportId: "rugby-union",
+      roundName: "Round 1",
+      homeTeam: "New Zealand",
+      awayTeam: "France",
+      venue: "One NZ Stadium, Christchurch",
+      kickoffTime: "2026-07-04T08:05",
+      status: "completed",
+      homeScore: 34,
+      awayScore: 32,
+      homeGoals: 0,
+      homePoints: 0,
+      awayGoals: 0,
+      awayPoints: 0
+    },
+    {
+      externalId: "rnc-2026-r1-rsa-eng",
+      sportId: "rugby-union",
+      roundName: "Round 1",
+      homeTeam: "South Africa",
+      awayTeam: "England",
+      venue: "Ellis Park, Johannesburg",
+      kickoffTime: "2026-07-04T16:00",
+      status: "completed",
+      homeScore: 28,
+      awayScore: 24,
+      homeGoals: 0,
+      homePoints: 0,
+      awayGoals: 0,
+      awayPoints: 0
+    },
+    {
+      externalId: "rnc-2026-r1-arg-sco",
+      sportId: "rugby-union",
+      roundName: "Round 1",
+      homeTeam: "Argentina",
+      awayTeam: "Scotland",
+      venue: "Estadio Vélez Sarsfield, Buenos Aires",
+      kickoffTime: "2026-07-04T20:10",
+      status: "completed",
+      homeScore: 26,
+      awayScore: 20,
+      homeGoals: 0,
+      homePoints: 0,
+      awayGoals: 0,
+      awayPoints: 0
+    },
+    // ROUND 2 (July Window)
+    {
+      externalId: "rnc-2026-r2-jpn-ire",
+      sportId: "rugby-union",
+      roundName: "Round 2",
+      homeTeam: "Japan",
+      awayTeam: "Ireland",
+      venue: "National Stadium, Tokyo",
+      kickoffTime: "2026-07-11T11:00",
+      status: "completed",
+      homeScore: 11,
+      awayScore: 21,
+      homeGoals: 0,
+      homePoints: 0,
+      awayGoals: 0,
+      awayPoints: 0
+    },
+    {
+      externalId: "rnc-2026-r2-aus-fra",
+      sportId: "rugby-union",
+      roundName: "Round 2",
+      homeTeam: "Australia",
+      awayTeam: "France",
+      venue: "Suncorp Stadium, Brisbane",
+      kickoffTime: "2026-07-11T10:55",
+      status: "completed",
+      homeScore: 26,
+      awayScore: 42,
+      homeGoals: 0,
+      homePoints: 0,
+      awayGoals: 0,
+      awayPoints: 0
+    },
+    {
+      externalId: "rnc-2026-r2-rsa-sco",
+      sportId: "rugby-union",
+      roundName: "Round 2",
+      homeTeam: "South Africa",
+      awayTeam: "Scotland",
+      venue: "Loftus Versfeld, Pretoria",
+      kickoffTime: "2026-07-11T16:00",
+      status: "completed",
+      homeScore: 35,
+      awayScore: 18,
+      homeGoals: 0,
+      homePoints: 0,
+      awayGoals: 0,
+      awayPoints: 0
+    },
+    // ROUND 3 (July Window)
+    {
+      externalId: "rnc-2026-r3-nz-ire",
+      sportId: "rugby-union",
+      roundName: "Round 3",
+      homeTeam: "New Zealand",
+      awayTeam: "Ireland",
+      venue: "Eden Park, Auckland",
+      kickoffTime: "2026-07-18T08:05",
+      status: "completed",
+      homeScore: 40,
+      awayScore: 21,
+      homeGoals: 0,
+      homePoints: 0,
+      awayGoals: 0,
+      awayPoints: 0
+    },
+    {
+      externalId: "rnc-2026-r3-jpn-fra",
+      sportId: "rugby-union",
+      roundName: "Round 3",
+      homeTeam: "Japan",
+      awayTeam: "France",
+      venue: "National Stadium, Tokyo",
+      kickoffTime: "2026-07-18T11:00",
+      status: "completed",
+      homeScore: 15,
+      awayScore: 42,
+      homeGoals: 0,
+      homePoints: 0,
+      awayGoals: 0,
+      awayPoints: 0
+    },
+    // ROUND 4 (November Window - Autumn Nations Series)
+    {
+      externalId: "rnc-2026-r4-ire-arg",
+      sportId: "rugby-union",
+      roundName: "Round 4",
+      homeTeam: "Ireland",
+      awayTeam: "Argentina",
+      venue: "Aviva Stadium, Dublin",
+      kickoffTime: "2026-11-06T20:10",
+      status: "completed",
+      homeScore: 42,
+      awayScore: 12,
+      homeGoals: 0,
+      homePoints: 0,
+      awayGoals: 0,
+      awayPoints: 0
+    },
+    {
+      externalId: "rnc-2026-r4-fra-fij",
+      sportId: "rugby-union",
+      roundName: "Round 4",
+      homeTeam: "France",
+      awayTeam: "Fiji",
+      venue: "Groupama Stadium, Lyon",
+      kickoffTime: "2026-11-07T20:10",
+      status: "completed",
+      homeScore: 54,
+      awayScore: 17,
+      homeGoals: 0,
+      homePoints: 0,
+      awayGoals: 0,
+      awayPoints: 0
+    },
+    {
+      externalId: "rnc-2026-r4-sco-nz",
+      sportId: "rugby-union",
+      roundName: "Round 4",
+      homeTeam: "Scotland",
+      awayTeam: "New Zealand",
+      venue: "Scottish Gas Murrayfield, Edinburgh",
+      kickoffTime: "2026-11-07T15:10",
+      status: "completed",
+      homeScore: 22,
+      awayScore: 31,
+      homeGoals: 0,
+      homePoints: 0,
+      awayGoals: 0,
+      awayPoints: 0
+    },
+    {
+      externalId: "rnc-2026-r4-ita-rsa",
+      sportId: "rugby-union",
+      roundName: "Round 4",
+      homeTeam: "Italy",
+      awayTeam: "South Africa",
+      venue: "Stadio Olimpico, Rome",
+      kickoffTime: "2026-11-07T13:00",
+      status: "completed",
+      homeScore: 16,
+      awayScore: 38,
+      homeGoals: 0,
+      homePoints: 0,
+      awayGoals: 0,
+      awayPoints: 0
+    },
+    {
+      externalId: "rnc-2026-r4-eng-aus",
+      sportId: "rugby-union",
+      roundName: "Round 4",
+      homeTeam: "England",
+      awayTeam: "Australia",
+      venue: "Allianz Stadium, Twickenham",
+      kickoffTime: "2026-11-08T15:10",
+      status: "upcoming",
+      homeScore: 0,
+      awayScore: 0,
+      homeGoals: 0,
+      homePoints: 0,
+      awayGoals: 0,
+      awayPoints: 0
+    },
+    {
+      externalId: "rnc-2026-r4-wal-jpn",
+      sportId: "rugby-union",
+      roundName: "Round 4",
+      homeTeam: "Wales",
+      awayTeam: "Japan",
+      venue: "Principality Stadium, Cardiff",
+      kickoffTime: "2026-11-08T17:40",
+      status: "upcoming",
+      homeScore: 0,
+      awayScore: 0,
+      homeGoals: 0,
+      homePoints: 0,
+      awayGoals: 0,
+      awayPoints: 0
+    },
+    // ROUND 5 (November Window - Autumn Nations Series)
+    {
+      externalId: "rnc-2026-r5-fra-rsa",
+      sportId: "rugby-union",
+      roundName: "Round 5",
+      homeTeam: "France",
+      awayTeam: "South Africa",
+      venue: "Stade de France, Paris",
+      kickoffTime: "2026-11-13T20:10",
+      status: "upcoming",
+      homeScore: 0,
+      awayScore: 0,
+      homeGoals: 0,
+      homePoints: 0,
+      awayGoals: 0,
+      awayPoints: 0
+    },
+    {
+      externalId: "rnc-2026-r5-ire-fij",
+      sportId: "rugby-union",
+      roundName: "Round 5",
+      homeTeam: "Ireland",
+      awayTeam: "Fiji",
+      venue: "Aviva Stadium, Dublin",
+      kickoffTime: "2026-11-14T15:10",
+      status: "upcoming",
+      homeScore: 0,
+      awayScore: 0,
+      homeGoals: 0,
+      homePoints: 0,
+      awayGoals: 0,
+      awayPoints: 0
+    },
+    {
+      externalId: "rnc-2026-r5-eng-jpn",
+      sportId: "rugby-union",
+      roundName: "Round 5",
+      homeTeam: "England",
+      awayTeam: "Japan",
+      venue: "Allianz Stadium, Twickenham",
+      kickoffTime: "2026-11-14T17:40",
+      status: "upcoming",
+      homeScore: 0,
+      awayScore: 0,
+      homeGoals: 0,
+      homePoints: 0,
+      awayGoals: 0,
+      awayPoints: 0
+    },
+    {
+      externalId: "rnc-2026-r5-wal-nz",
+      sportId: "rugby-union",
+      roundName: "Round 5",
+      homeTeam: "Wales",
+      awayTeam: "New Zealand",
+      venue: "Principality Stadium, Cardiff",
+      kickoffTime: "2026-11-14T17:40",
+      status: "upcoming",
+      homeScore: 0,
+      awayScore: 0,
+      homeGoals: 0,
+      homePoints: 0,
+      awayGoals: 0,
+      awayPoints: 0
+    },
+    {
+      externalId: "rnc-2026-r5-sco-aus",
+      sportId: "rugby-union",
+      roundName: "Round 5",
+      homeTeam: "Scotland",
+      awayTeam: "Australia",
+      venue: "Scottish Gas Murrayfield, Edinburgh",
+      kickoffTime: "2026-11-15T13:40",
+      status: "upcoming",
+      homeScore: 0,
+      awayScore: 0,
+      homeGoals: 0,
+      homePoints: 0,
+      awayGoals: 0,
+      awayPoints: 0
+    },
+    {
+      externalId: "rnc-2026-r5-ita-arg",
+      sportId: "rugby-union",
+      roundName: "Round 5",
+      homeTeam: "Italy",
+      awayTeam: "Argentina",
+      venue: "Bluenergy Stadium, Udine",
+      kickoffTime: "2026-11-15T15:00",
+      status: "upcoming",
+      homeScore: 0,
+      awayScore: 0,
+      homeGoals: 0,
+      homePoints: 0,
+      awayGoals: 0,
+      awayPoints: 0
+    },
+    // ROUND 6 (November Window - Autumn Nations Series)
+    {
+      externalId: "rnc-2026-r6-ire-rsa",
+      sportId: "rugby-union",
+      roundName: "Round 6",
+      homeTeam: "Ireland",
+      awayTeam: "South Africa",
+      venue: "Aviva Stadium, Dublin",
+      kickoffTime: "2026-11-21T17:40",
+      status: "upcoming",
+      homeScore: 0,
+      awayScore: 0,
+      homeGoals: 0,
+      homePoints: 0,
+      awayGoals: 0,
+      awayPoints: 0
+    },
+    {
+      externalId: "rnc-2026-r6-eng-nz",
+      sportId: "rugby-union",
+      roundName: "Round 6",
+      homeTeam: "England",
+      awayTeam: "New Zealand",
+      venue: "Allianz Stadium, Twickenham",
+      kickoffTime: "2026-11-21T15:10",
+      status: "upcoming",
+      homeScore: 0,
+      awayScore: 0,
+      homeGoals: 0,
+      homePoints: 0,
+      awayGoals: 0,
+      awayPoints: 0
+    },
+    {
+      externalId: "rnc-2026-r6-fra-arg",
+      sportId: "rugby-union",
+      roundName: "Round 6",
+      homeTeam: "France",
+      awayTeam: "Argentina",
+      venue: "Stade de France, Paris",
+      kickoffTime: "2026-11-21T20:10",
+      status: "upcoming",
+      homeScore: 0,
+      awayScore: 0,
+      homeGoals: 0,
+      homePoints: 0,
+      awayGoals: 0,
+      awayPoints: 0
+    },
+    {
+      externalId: "rnc-2026-r6-sco-jpn",
+      sportId: "rugby-union",
+      roundName: "Round 6",
+      homeTeam: "Scotland",
+      awayTeam: "Japan",
+      venue: "Scottish Gas Murrayfield, Edinburgh",
+      kickoffTime: "2026-11-21T13:00",
+      status: "upcoming",
+      homeScore: 0,
+      awayScore: 0,
+      homeGoals: 0,
+      homePoints: 0,
+      awayGoals: 0,
+      awayPoints: 0
+    },
+    {
+      externalId: "rnc-2026-r6-wal-aus",
+      sportId: "rugby-union",
+      roundName: "Round 6",
+      homeTeam: "Wales",
+      awayTeam: "Australia",
+      venue: "Principality Stadium, Cardiff",
+      kickoffTime: "2026-11-22T16:10",
+      status: "upcoming",
+      homeScore: 0,
+      awayScore: 0,
+      homeGoals: 0,
+      homePoints: 0,
+      awayGoals: 0,
+      awayPoints: 0
+    },
+    {
+      externalId: "rnc-2026-r6-ita-fij",
+      sportId: "rugby-union",
+      roundName: "Round 6",
+      homeTeam: "Italy",
+      awayTeam: "Fiji",
+      venue: "Stadio Luigi Ferraris, Genoa",
+      kickoffTime: "2026-11-21T14:00",
+      status: "upcoming",
+      homeScore: 0,
+      awayScore: 0,
+      homeGoals: 0,
+      homePoints: 0,
+      awayGoals: 0,
+      awayPoints: 0
+    },
+    // FINALS WEEKEND (Twickenham, Nov 27-29)
+    {
+      externalId: "rnc-2026-final-1v1",
+      sportId: "rugby-union",
+      roundName: "Finals Weekend",
+      homeTeam: "Northern Hemisphere #1",
+      awayTeam: "Southern Hemisphere #1",
+      venue: "Allianz Stadium, Twickenham (Grand Final)",
+      kickoffTime: "2026-11-29T16:00",
+      status: "upcoming",
+      homeScore: 0,
+      awayScore: 0,
+      homeGoals: 0,
+      homePoints: 0,
+      awayGoals: 0,
+      awayPoints: 0
+    },
+    {
+      externalId: "rnc-2026-final-2v2",
+      sportId: "rugby-union",
+      roundName: "Finals Weekend",
+      homeTeam: "Northern Hemisphere #2",
+      awayTeam: "Southern Hemisphere #2",
+      venue: "Allianz Stadium, Twickenham (Bronze Final)",
+      kickoffTime: "2026-11-28T17:40",
+      status: "upcoming",
+      homeScore: 0,
+      awayScore: 0,
+      homeGoals: 0,
+      homePoints: 0,
+      awayGoals: 0,
+      awayPoints: 0
+    }
+  ];
 }
 
 function getCuratedGaaFixtures(feedId) {

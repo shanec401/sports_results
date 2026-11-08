@@ -23,7 +23,7 @@ import {
   LIVE_LEAGUE_FEEDS,
   getFeedById,
   fetchFixturesAndResultsFromFeed
-} from "./live-sync.js";
+} from "./live-sync.js?v=7";
 
 const state = {
   selectedSportFilter: "ALL",
