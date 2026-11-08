@@ -356,12 +356,15 @@ function renderCompetitionBanner() {
   document.getElementById("activeCompDescription").textContent =
     `${sport.emoji} ${sport.name} • ${activeComp.description || ""}`;
 
+  const t1 = (Number(activeComp.tier1Margin) || 7) <= 2 ? 7 : Number(activeComp.tier1Margin);
+  const t2 = (Number(activeComp.tier2Margin) || 14) <= 5 ? 14 : Number(activeComp.tier2Margin);
+
   document.getElementById("ruleExactPts").textContent = `+${activeComp.exactBonusPts ?? 3} BONUS`;
   document.getElementById("ruleExactLabel").textContent =
-    `Exact / Within ${activeComp.tier1Margin ?? 2} Pts`;
+    `Exact / Within ${t1} Pts (Each Team)`;
   document.getElementById("ruleClosePts").textContent = `+${activeComp.closeBonusPts ?? 2} BONUS`;
   document.getElementById("ruleCloseLabel").textContent =
-    `Within ${activeComp.tier2Margin ?? 5} Pts of Score`;
+    `Within ${t2} Pts (Each Team)`;
 
   // Registration status bar for strict-approval leagues
   const regBox = document.getElementById("registrationStatusBox");
@@ -880,7 +883,7 @@ function renderAdminTab() {
     row.innerHTML = `
       <div>
         <strong>${sport.emoji} ${escapeHtml(c.title)}</strong>
-        <div class="muted" style="font-size:0.78rem;">${escapeHtml(c.season)} • Result: +${c.resultPts}pts | Exact: +${c.exactBonusPts}pts | Within 5: +${c.closeBonusPts}pts</div>
+        <div class="muted" style="font-size:0.78rem;">${escapeHtml(c.season)} • Result: +${c.resultPts}pts | Within 7/Team: +${c.exactBonusPts}pts | Within 14/Team: +${c.closeBonusPts}pts</div>
       </div>
       <div style="display:flex; gap:6px;">
         <button class="btn btn-outline btn-sm" data-select-comp="${c.id}">View</button>
@@ -1103,7 +1106,7 @@ async function exportCompetitionPdf() {
   const sheet = document.getElementById("pdfExportContainer");
   sheet.innerHTML = `
     <h2>${sport.emoji} ${escapeHtml(comp.title)} (${escapeHtml(comp.season)})</h2>
-    <p>Scoring: Correct Result = +${comp.resultPts} pts | Exact/Close = +${comp.exactBonusPts} pts | Within 5 Pts = +${comp.closeBonusPts} pts</p>
+    <p>Scoring: Correct Result = +${comp.resultPts} pts | Within 7 Pts/Team = +${comp.exactBonusPts} pts | Within 14 Pts/Team = +${comp.closeBonusPts} pts</p>
     <h3>📊 Official Leaderboard</h3>
     <table class="pdf-table">
       <thead>
@@ -1112,8 +1115,8 @@ async function exportCompetitionPdf() {
           <th>Player</th>
           <th>Graded</th>
           <th>Result (+3)</th>
-          <th>Exact/Close (+3)</th>
-          <th>Within 5 (+2)</th>
+          <th>Within 7/Team (+3)</th>
+          <th>Within 14/Team (+2)</th>
           <th>Total Points</th>
         </tr>
       </thead>
@@ -1340,8 +1343,8 @@ function bindUIEvents() {
       resultPts: Number(document.getElementById("compResultPts").value) || 3,
       exactBonusPts: Number(document.getElementById("compExactBonusPts").value) || 3,
       closeBonusPts: Number(document.getElementById("compCloseBonusPts").value) || 2,
-      tier1Margin: 2,
-      tier2Margin: 5
+      tier1Margin: 7,
+      tier2Margin: 14
     };
 
     state.competitions.unshift(newComp);

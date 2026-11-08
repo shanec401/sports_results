@@ -85,11 +85,11 @@
         </div>
         <div class="score-rule-card bonus-gold">
           <span class="rule-pts" id="ruleExactPts">+3 BONUS</span>
-          <span class="rule-label" id="ruleExactLabel">Exact / Within 2 Pts</span>
+          <span class="rule-label" id="ruleExactLabel">Exact / Within 7 Pts (Each Team)</span>
         </div>
         <div class="score-rule-card bonus-silver">
           <span class="rule-pts" id="ruleClosePts">+2 BONUS</span>
-          <span class="rule-label" id="ruleCloseLabel">Within 5 Pts of Score</span>
+          <span class="rule-label" id="ruleCloseLabel">Within 14 Pts (Each Team)</span>
         </div>
       </div>
     </section>
@@ -140,8 +140,8 @@
                 <th>Player</th>
                 <th>Picks Graded</th>
                 <th>Correct Result (+3)</th>
-                <th>Exact/Close Bonus (+3)</th>
-                <th>Within 5 Pts Bonus (+2)</th>
+                <th>Within 7 Pts/Team (+3)</th>
+                <th>Within 14 Pts/Team (+2)</th>
                 <th>Total Points</th>
               </tr>
             </thead>
@@ -293,7 +293,7 @@
 
         <!-- Standard Score Inputs (Soccer, Rugby, NFL, Basketball, Golf, Tennis, Fishing) -->
         <div id="standardScoreInputs" class="score-inputs-box">
-          <label>2. Predict the Final Score (+3 Exact/Close Bonus | +2 Within 5 Pts Bonus)</label>
+          <label>2. Predict the Final Score (+3 Bonus Within 7 Pts/Team | +2 Bonus Within 14 Pts/Team)</label>
           <div class="form-grid-2">
             <div class="form-group">
               <label for="predHomeScore" id="lblPredHomeScore">Home Score</label>
@@ -396,11 +396,11 @@
             <input id="compResultPts" type="number" min="1" value="3" required />
           </div>
           <div class="form-group">
-            <label for="compExactBonusPts">Exact / Close Bonus (+Pts)</label>
+            <label for="compExactBonusPts">Within 7 Pts/Team Bonus (+Pts)</label>
             <input id="compExactBonusPts" type="number" min="0" value="3" required />
           </div>
           <div class="form-group">
-            <label for="compCloseBonusPts">Within 5 Pts Bonus (+Pts)</label>
+            <label for="compCloseBonusPts">Within 14 Pts/Team Bonus (+Pts)</label>
             <input id="compCloseBonusPts" type="number" min="0" value="2" required />
           </div>
         </div>
@@ -611,6 +611,6 @@
   <!-- Toast Container -->
   <div id="toastContainer" class="toast-container no-print" aria-live="polite"></div>
 
-  <script type="module" src="./app.js?v=2"></script>
+  <script type="module" src="./app.js?v=3"></script>
 </body>
 </html>

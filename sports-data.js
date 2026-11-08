@@ -128,10 +128,12 @@ export function getOutcomeFromScores(homeTotal, awayTotal) {
 // ============================================================================
 // PREDICTION SCORING ENGINE
 // ============================================================================
-// Default Rules requested by user:
-// - Predict the correct Result (Win / Loss / Draw) = +3 points
-// - Predict the score within Tier 1 (Exact or within 2 pts) = +3 bonus points
-// - Predict the score within Tier 2 (Within 5 pts of score) = +2 bonus points
+// Scoring Rules & Per-Team Closeness Maths:
+// 1. Correct Result (Win / Loss / Draw) = +3 points
+// 2. Tier 1 Bonus (+3 BONUS): Both teams' predicted scores are Exact or within
+//    7 points of their actual score: |PredHome - ActualHome| <= 7 AND |PredAway - ActualAway| <= 7
+// 3. Tier 2 Bonus (+2 BONUS): Both teams' predicted scores are within 14 points
+//    of their actual score: |PredHome - ActualHome| <= 14 AND |PredAway - ActualAway| <= 14
 export function calculatePredictionPoints(prediction, game, competition) {
   if (!prediction || !game || game.status !== "completed") {
     return {
@@ -144,12 +146,15 @@ export function calculatePredictionPoints(prediction, game, competition) {
     };
   }
 
+  // Migrate any legacy 2/5 margins to the 7/14 per-team standard
+  const rawT1 = Number(competition?.tier1Margin ?? 7);
+  const rawT2 = Number(competition?.tier2Margin ?? 14);
   const rules = {
     resultPts: Number(competition?.resultPts ?? 3),
     exactBonusPts: Number(competition?.exactBonusPts ?? 3),
     closeBonusPts: Number(competition?.closeBonusPts ?? 2),
-    tier1Margin: Number(competition?.tier1Margin ?? 2),
-    tier2Margin: Number(competition?.tier2Margin ?? 5)
+    tier1Margin: rawT1 <= 2 ? 7 : rawT1,
+    tier2Margin: rawT2 <= 5 ? 14 : rawT2
   };
 
   const actualHome = Number(game.homeScore) || 0;
@@ -160,29 +165,36 @@ export function calculatePredictionPoints(prediction, game, competition) {
   const predAway = Number(prediction.awayScore) || 0;
   const predOutcome = prediction.pickedOutcome || getOutcomeFromScores(predHome, predAway);
 
-  // 1. Check Win / Loss / Draw result (3 pts)
+  // 1. Check Win / Loss / Draw result (+3 pts)
   const isResultCorrect = predOutcome === actualOutcome;
   const resultPoints = isResultCorrect ? rules.resultPts : 0;
 
-  // 2. Check score closeness
-  // How close was the user to the score?
-  // We check both: combined score error OR winning margin error + each team within range
+  // 2. Per-Team Score Closeness Maths:
+  // Measure how far off the prediction is for each individual team
   const homeDiff = Math.abs(predHome - actualHome);
   const awayDiff = Math.abs(predAway - actualAway);
+  const maxTeamDiff = Math.max(homeDiff, awayDiff);
   const totalScoreDiff = homeDiff + awayDiff;
 
   let bonusPoints = 0;
   let tier = isResultCorrect ? "result_only" : "missed";
-  let summary = isResultCorrect ? `Correct Result (+${resultPoints} pts)` : "Missed Result (0 pts)";
+  const diffNote = `(Home off by ${homeDiff}, Away off by ${awayDiff})`;
+  let summary = isResultCorrect
+    ? `Correct Result (+${resultPoints} pts) ${diffNote}`
+    : `Missed Result (0 pts) ${diffNote}`;
 
-  if (totalScoreDiff <= rules.tier1Margin || (homeDiff <= 1 && awayDiff <= 1)) {
+  if (homeDiff === 0 && awayDiff === 0) {
     bonusPoints = rules.exactBonusPts;
     tier = "tier1_bonus";
-    summary = `${isResultCorrect ? `Result (+${resultPoints})` : "Score Bonus"} + Exact/Close Bonus (+${bonusPoints} pts)`;
-  } else if (totalScoreDiff <= rules.tier2Margin || (homeDiff <= rules.tier2Margin && awayDiff <= rules.tier2Margin)) {
+    summary = `🎯 Exact Score Bullseye! Result (+${resultPoints}) + Bonus (+${bonusPoints} pts)`;
+  } else if (homeDiff <= rules.tier1Margin && awayDiff <= rules.tier1Margin) {
+    bonusPoints = rules.exactBonusPts;
+    tier = "tier1_bonus";
+    summary = `${isResultCorrect ? `Result (+${resultPoints})` : "Score Bonus"} + Within ${rules.tier1Margin} Pts/Team (+${bonusPoints} pts) ${diffNote}`;
+  } else if (homeDiff <= rules.tier2Margin && awayDiff <= rules.tier2Margin) {
     bonusPoints = rules.closeBonusPts;
     tier = "tier2_bonus";
-    summary = `${isResultCorrect ? `Result (+${resultPoints})` : "Score Bonus"} + Within ${rules.tier2Margin} Pts (+${bonusPoints} pts)`;
+    summary = `${isResultCorrect ? `Result (+${resultPoints})` : "Score Bonus"} + Within ${rules.tier2Margin} Pts/Team (+${bonusPoints} pts) ${diffNote}`;
   }
 
   return {
@@ -191,6 +203,9 @@ export function calculatePredictionPoints(prediction, game, competition) {
     totalPoints: resultPoints + bonusPoints,
     resultPoints,
     bonusPoints,
+    homeDiff,
+    awayDiff,
+    maxTeamDiff,
     totalScoreDiff,
     tier,
     summary
@@ -212,8 +227,8 @@ export const STARTER_COMPETITIONS = [
     resultPts: 3,
     exactBonusPts: 3,
     closeBonusPts: 2,
-    tier1Margin: 2,
-    tier2Margin: 5
+    tier1Margin: 7,
+    tier2Margin: 14
   },
   {
     id: "comp-all-ireland-football-2026",
@@ -225,8 +240,8 @@ export const STARTER_COMPETITIONS = [
     resultPts: 3,
     exactBonusPts: 3,
     closeBonusPts: 2,
-    tier1Margin: 2,
-    tier2Margin: 5
+    tier1Margin: 7,
+    tier2Margin: 14
   },
   {
     id: "comp-six-nations-rugby",
@@ -238,8 +253,8 @@ export const STARTER_COMPETITIONS = [
     resultPts: 3,
     exactBonusPts: 3,
     closeBonusPts: 2,
-    tier1Margin: 2,
-    tier2Margin: 5
+    tier1Margin: 7,
+    tier2Margin: 14
   },
   {
     id: "comp-premier-league-soccer",
@@ -251,8 +266,8 @@ export const STARTER_COMPETITIONS = [
     resultPts: 3,
     exactBonusPts: 3,
     closeBonusPts: 2,
-    tier1Margin: 1,
-    tier2Margin: 3
+    tier1Margin: 7,
+    tier2Margin: 14
   },
   {
     id: "comp-irish-angling-open",
@@ -264,8 +279,8 @@ export const STARTER_COMPETITIONS = [
     resultPts: 3,
     exactBonusPts: 3,
     closeBonusPts: 2,
-    tier1Margin: 2,
-    tier2Margin: 5
+    tier1Margin: 7,
+    tier2Margin: 14
   }
 ];
 
